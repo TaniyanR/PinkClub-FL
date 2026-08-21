@@ -2,7 +2,6 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_bootstrap.php';
-require_once __DIR__ . '/partials/public_ui.php';
 
 function sample_images_parse_list(?string $value): array
 {
@@ -73,41 +72,51 @@ function sample_images_collect_from_value(mixed $value, array &$images): void
 }
 
 $contentId = trim((string)get('content_id', ''));
-$wantsJson = strtolower(trim((string)get('format', ''))) === 'json'
-    || str_contains(strtolower((string)($_SERVER['HTTP_ACCEPT'] ?? '')), 'application/json');
 if ($contentId === '') {
     http_response_code(404);
-    if ($wantsJson) {
-        header('Content-Type: application/json; charset=UTF-8');
-        echo json_encode(['title' => '', 'images' => [], 'error' => 'not_found'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        exit;
-    }
     exit('content_id が指定されていません。');
 }
 
-$stmt = db()->prepare('SELECT content_id, title, raw_json FROM items WHERE content_id = ? LIMIT 1');
+$stmt = db()->prepare('SELECT content_id, title, raw_json, image_list FROM items WHERE content_id = ? LIMIT 1');
 $stmt->execute([$contentId]);
 $item = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$item) {
     http_response_code(404);
-    if ($wantsJson) {
-        header('Content-Type: application/json; charset=UTF-8');
-        echo json_encode(['title' => '', 'images' => [], 'error' => 'not_found'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        exit;
-    }
     exit('指定の商品が見つかりません。');
 }
 
 $decoded = json_decode((string)($item['raw_json'] ?? ''), true);
-$images = is_array($decoded) ? pcf_pick_sample_image_urls_from_raw($decoded) : [];
+$images = [];
+if (is_array($decoded) && isset($decoded['sampleImageURL'])) {
+    if (is_array($decoded['sampleImageURL'])) {
+        foreach (['sample_l', 'sample_s'] as $sizeKey) {
+            $sampleImages = [];
+            sample_images_collect_from_value($decoded['sampleImageURL'][$sizeKey]['image'] ?? null, $sampleImages);
+            if ($sampleImages !== []) {
+                $images = array_merge($images, $sampleImages);
+                break;
+            }
+        }
+    } else {
+        sample_images_collect_from_value($decoded['sampleImageURL'], $images);
+    }
+}
+$images = array_values(array_unique($images));
+if ($images === []) {
+    $images = array_values(array_unique(array_filter(sample_images_parse_list((string)($item['image_list'] ?? '')), static fn($url) => !sample_images_is_self_hosted_fanza_image_url((string)$url))));
+}
+$images = array_values(array_filter($images, static function (string $url): bool {
+    $scheme = strtolower((string)parse_url($url, PHP_URL_SCHEME));
+    return in_array($scheme, ['http', 'https'], true);
+}));
 
-if ($wantsJson) {
+if (strtolower(trim((string)get('format', ''))) === 'json') {
     header('Content-Type: application/json; charset=UTF-8');
-    header('X-Robots-Tag: noindex, nofollow');
+    header('Cache-Control: public, max-age=300');
     echo json_encode([
         'title' => (string)$item['title'],
         'images' => $images,
-    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP);
     exit;
 }
 ?>
@@ -116,7 +125,6 @@ if ($wantsJson) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="robots" content="noindex, nofollow">
   <title><?= e((string)$item['title']) ?> - サンプル画像</title>
   <style>
     html, body { height: 100%; }
@@ -167,19 +175,30 @@ if ($wantsJson) {
     var scroller = document.getElementById('sampleScroll');
     var prevButton = document.getElementById('samplePrev');
     var nextButton = document.getElementById('sampleNext');
-    if (!scroller || !prevButton || !nextButton) return;
+    if (!scroller || !prevButton || !nextButton) {
+      return;
+    }
+
     var updateButtons = function () {
       var remaining = scroller.scrollWidth - scroller.clientWidth - scroller.scrollLeft;
       prevButton.hidden = scroller.scrollLeft <= 4;
       nextButton.hidden = remaining <= 4;
     };
+
     var scrollOneFrame = function (direction) {
       var frame = scroller.querySelector('.sample-frame');
       var distance = frame ? frame.getBoundingClientRect().width + 10 : Math.max(280, scroller.clientWidth * 0.85);
       scroller.scrollBy({ left: direction * distance, behavior: 'smooth' });
     };
-    prevButton.addEventListener('click', function () { scrollOneFrame(-1); });
-    nextButton.addEventListener('click', function () { scrollOneFrame(1); });
+
+    prevButton.addEventListener('click', function () {
+      scrollOneFrame(-1);
+    });
+
+    nextButton.addEventListener('click', function () {
+      scrollOneFrame(1);
+    });
+
     scroller.addEventListener('scroll', updateButtons, { passive: true });
     window.addEventListener('resize', updateButtons);
     updateButtons();
