@@ -388,6 +388,8 @@ if (!function_exists('pcf_pick_sample_image_urls_from_raw')) {
                     break;
                 }
             }
+        } else {
+            pcf_collect_sample_image_urls_from_value($sampleImageURL, $images);
         }
 
         return array_values(array_unique(array_filter(array_map(static fn($u) => trim((string)$u), $images))));
@@ -607,6 +609,11 @@ if (!function_exists('pcf_render_item_card')) {
 
         $sampleImagesUrl = public_url('sample_images.php?content_id=' . rawurlencode($contentId));
         $hasSampleImages = pcf_pick_sample_image_urls_from_raw($raw) !== [];
+        $affiliateUrl = trim((string)($item['affiliate_url'] ?? ''));
+        if ($affiliateUrl === '') {
+            $affiliateUrl = trim((string)($raw['affiliateURL'] ?? $raw['affiliate_url'] ?? ''));
+        }
+        $isVrItem = preg_match('/(?:【|\[|［)?\s*VR\s*(?:】|\]|］)?/i', $title) === 1;
 
         echo '<article class="pcf-dm-card">';
         echo '<a class="pcf-dm-card__image-link" href="' . e($itemUrl) . '">';
@@ -621,13 +628,15 @@ if (!function_exists('pcf_render_item_card')) {
         $releaseDateRaw = trim((string)($item['release_date'] ?? ''));
         $releaseDateLabel = $releaseDateRaw !== '' ? '発売日：' . e(format_date($releaseDateRaw)) : '発売日';
         echo '<span style="display:block;width:100%;padding:12px 10px;text-align:center;color:#000;background:transparent;border:1px solid #000;border-radius:4px;font-size:14px;font-weight:700;box-sizing:border-box;">' . $releaseDateLabel . '</span>';
-        if ($sampleMovieUrl !== '') {
+        if ($isVrItem && $itemId > 0 && $affiliateUrl !== '') {
+            echo '<a class="pcf-dm-card__button sample-button--enabled" href="' . e(public_url('vr_affiliate.php?id=' . $itemId)) . '" target="_blank" rel="noopener noreferrer sponsored">元サイトで見る</a>';
+        } elseif ($sampleMovieUrl !== '') {
             echo '<button type="button" class="pcf-dm-card__button sample-movie-trigger" data-movie-url="' . e($sampleMovieUrl) . '" data-movie-title="' . e($title) . '">サンプル動画</button>';
         } else {
             echo '<span class="pcf-dm-card__button is-disabled">サンプル動画</span>';
         }
         if ($hasSampleImages && $contentId !== '') {
-            echo '<button type="button" class="pcf-dm-card__button sample-image-trigger" data-sample-images-url="' . e($sampleImagesUrl) . '" data-sample-images-title="' . e($title) . '">サンプル画像</button>';
+            echo '<button type="button" class="pcf-dm-card__button" onclick="window.open(\'' . e($sampleImagesUrl) . '\',\'_blank\',\'noopener,noreferrer,width=760,height=540\');">サンプル画像</button>';
         } else {
             echo '<span class="pcf-dm-card__button is-disabled">サンプル画像</span>';
         }
