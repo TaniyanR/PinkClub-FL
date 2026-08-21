@@ -11,13 +11,10 @@ function sitemap_e(string $value): string
     return htmlspecialchars($value, ENT_XML1 | ENT_COMPAT, 'UTF-8');
 }
 
-function sitemap_url(string $loc, string $changefreq, string $priority, string $lastmod = ''): void
+function sitemap_url(string $loc, string $changefreq, string $priority): void
 {
     echo "  <url>\n";
     echo '    <loc>' . sitemap_e($loc) . "</loc>\n";
-    if ($lastmod !== '') {
-        echo '    <lastmod>' . sitemap_e(substr($lastmod, 0, 10)) . "</lastmod>\n";
-    }
     echo '    <changefreq>' . sitemap_e($changefreq) . "</changefreq>\n";
     echo '    <priority>' . sitemap_e($priority) . "</priority>\n";
     echo "  </url>\n";
@@ -42,16 +39,13 @@ function sitemap_table_count(string $table, string $where = ''): int
 function sitemap_emit_table(string $table, string $path, string $changefreq, string $priority, int $start, int &$remaining, string $where = ''): int
 {
     $count = sitemap_table_count($table, $where);
-    if ($remaining <= 0) {
-        return $count;
-    }
-    if ($start >= $count) {
+    if ($remaining <= 0 || $start >= $count) {
         return $count;
     }
 
     $limit = min($remaining, $count - $start);
     try {
-        $sql = 'SELECT id, updated_at FROM ' . $table;
+        $sql = 'SELECT id FROM ' . $table;
         if ($where !== '') {
             $sql .= ' WHERE ' . $where;
         }
@@ -61,7 +55,11 @@ function sitemap_emit_table(string $table, string $path, string $changefreq, str
         $stmt->bindValue(':offset', $start, PDO::PARAM_INT);
         $stmt->execute();
         foreach ($stmt->fetchAll() ?: [] as $row) {
-            sitemap_url(public_url($path) . '?id=' . rawurlencode((string)(int)($row['id'] ?? 0)), $changefreq, $priority, (string)($row['updated_at'] ?? ''));
+            $id = (int)($row['id'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+            sitemap_url(public_url($path) . '?id=' . rawurlencode((string)$id), $changefreq, $priority);
             $remaining--;
         }
     } catch (Throwable) {
@@ -76,7 +74,7 @@ $staticUrls = [
     [public_url('items.php'), 'daily', '0.9'],
 ];
 $tables = [
-    ['items', 'item.php', 'weekly', '0.8', items_front_release_where()],
+    ['items', 'item.php', 'weekly', '0.8', items_product_source_where()],
 ];
 $totalUrls = count($staticUrls);
 foreach ($tables as $table) {
@@ -96,10 +94,9 @@ if ((isset($_GET['index']) && (string)$_GET['index'] === '1') || ($totalUrls > $
     return;
 }
 
-$part = max(1, (int)($_GET['part'] ?? 1));
+$part = max(1, min(1000, (int)($_GET['part'] ?? 1)));
 $start = ($part - 1) * $perSitemap;
 $remaining = $perSitemap;
-
 
 echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
 echo "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n";
