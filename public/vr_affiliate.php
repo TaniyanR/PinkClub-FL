@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/_bootstrap.php';
 
+header('X-Robots-Tag: noindex, nofollow', true);
+
 $itemId = max(0, (int)($_GET['id'] ?? 0));
 if ($itemId <= 0) {
     http_response_code(404);
@@ -43,6 +45,11 @@ if ($affiliateUrl === '') {
     }
 }
 
+$affiliateUrl = html_entity_decode($affiliateUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+if (str_starts_with($affiliateUrl, '//')) {
+    $affiliateUrl = 'https:' . $affiliateUrl;
+}
+
 if ($affiliateUrl === '' || filter_var($affiliateUrl, FILTER_VALIDATE_URL) === false) {
     http_response_code(404);
     exit;
@@ -52,9 +59,12 @@ $host = strtolower((string)parse_url($affiliateUrl, PHP_URL_HOST));
 $allowed = $host === 'dmm.co.jp'
     || $host === 'www.dmm.co.jp'
     || $host === 'video.dmm.co.jp'
+    || $host === 'dmm.com'
+    || $host === 'www.dmm.com'
     || $host === 'fanza.co.jp'
     || $host === 'www.fanza.co.jp'
     || str_ends_with($host, '.dmm.co.jp')
+    || str_ends_with($host, '.dmm.com')
     || str_ends_with($host, '.fanza.co.jp');
 
 if (!$allowed) {
