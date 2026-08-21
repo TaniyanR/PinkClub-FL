@@ -11,7 +11,6 @@ function analytics_beacon_marker_hash(): string
     return hash('sha256', 'pinkclub-browser-beacon');
 }
 
-
 function analytics_request_is_automated(?string $userAgent = null): bool
 {
     $userAgent ??= (string)($_SERVER['HTTP_USER_AGENT'] ?? '');
@@ -19,6 +18,9 @@ function analytics_request_is_automated(?string $userAgent = null): bool
         return true;
     }
     if (function_exists('pcf_crawler_guard_is_known_crawler') && pcf_crawler_guard_is_known_crawler($userAgent)) {
+        return true;
+    }
+    if (preg_match('/(?:bot\b|spider|crawler|headless|lighthouse|pagespeed|pingdom|uptime|monitoring|python-requests|python-urllib|curl\/|wget\/|httpclient|go-http-client|java\/|okhttp|libwww-perl|phantomjs|selenium|playwright|puppeteer)/i', $userAgent) === 1) {
         return true;
     }
 
@@ -30,6 +32,42 @@ function analytics_request_is_automated(?string $userAgent = null): bool
     }
 
     return false;
+}
+
+function analytics_request_is_valid_browser_beacon(): bool
+{
+    if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
+        return false;
+    }
+    if (function_exists('auth_user') && auth_user()) {
+        return false;
+    }
+    if ((string)($_SERVER['HTTP_DNT'] ?? '') === '1'
+        || strtolower((string)($_SERVER['HTTP_SEC_GPC'] ?? '')) === '1'
+    ) {
+        return false;
+    }
+
+    $siteHost = analytics_normalize_host((string)($_SERVER['HTTP_HOST'] ?? ''));
+    if ($siteHost === '') {
+        return false;
+    }
+
+    $fetchSite = strtolower(trim((string)($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '')));
+    if ($fetchSite !== '' && $fetchSite !== 'same-origin') {
+        return false;
+    }
+
+    $originHost = analytics_normalize_host((string)($_SERVER['HTTP_ORIGIN'] ?? ''));
+    $refererHost = analytics_normalize_host((string)($_SERVER['HTTP_REFERER'] ?? ''));
+    if ($originHost !== '') {
+        return hash_equals($siteHost, $originHost);
+    }
+    if ($refererHost !== '') {
+        return hash_equals($siteHost, $refererHost);
+    }
+
+    return $fetchSite === 'same-origin';
 }
 
 function analytics_normalize_host(string $host): string
@@ -118,58 +156,100 @@ function analytics_maybe_cleanup_old_logs(int $retentionDays = 730, int $batchSi
 
 function analytics_track_beacon(): void
 {
-    if (!analytics_ensure_tables()) {
+    if (!analytics_ensure_tables() || !analytics_request_is_valid_browser_beacon()) {
         return;
     }
 
     try {
-    $ua = (string)($_SERVER['HTTP_USER_AGENT'] ?? '');
-    if (analytics_request_is_automated($ua)) {
-        return;
-    }
-    $hash = analytics_visitor_hash($ua);
-    $rawPath = (string)($_POST['path'] ?? '/');
-    $path = (string)parse_url($rawPath, PHP_URL_PATH);
-    if ($path === '' || $path[0] !== '/') {
-        $path = '/';
-    }
+        $ua = (string)($_SERVER['HTTP_USER_AGENT'] ?? '');
+        if (analytics_request_is_automated($ua)) {
+            return;
+        }
+        $hash = analytics_visitor_hash($ua);
+        $rawPath = (string)($_POST['path'] ?? '/');
+        $path = (string)parse_url($rawPath, PHP_URL_PATH);
+        if ($path === '' || $path[0] !== '/') {
+            $path = '/';
+        }
 
-    $queryParams = [];
-    parse_str((string)(parse_url($rawPath, PHP_URL_QUERY) ?? ''), $queryParams);
-    unset($queryParams['rank_period']);
-    $requestQuery = http_build_query($queryParams);
-    $pageKey = $path . ($requestQuery !== '' ? '?' . $requestQuery : '');
-    $pathForStats = mb_substr($pageKey, 0, 255);
-    $today = date('Y-m-d');
-    $referrer = (string)($_POST['referrer'] ?? '');
-    $refererHost = parse_url($referrer, PHP_URL_HOST) ?: '';
-    $refCode = trim((string)($_POST['ref'] ?? ''));
+        $queryParams = [];
+        parse_str((string)(parse_url($rawPath, PHP_URL_QUERY) ?? ''), $queryParams);
+        unset($queryParams['rank_period']);
+        $requestQuery = http_build_query($queryParams);
+        $pageKey = $path . ($requestQuery !== '' ? '?' . $requestQuery : '');
+        $pathForStats = mb_substr($pageKey, 0, 255);
+        $today = date('Y-m-d');
+        $referrer = (string)($_POST['referrer'] ?? '');
+        $refererHost = parse_url($referrer, PHP_URL_HOST) ?: '';
+        $refCode = trim((string)($_POST['ref'] ?? ''));
 
-    $pdo = db();
-    $visitStmt = $pdo->prepare('INSERT IGNORE INTO visit_sessions(stat_date,visitor_hash,first_seen_at) VALUES(:d,:h,NOW())');
-    $visitStmt->execute([':d' => $today, ':h' => $hash]);
-    $isUniqueVisitor = $visitStmt->rowCount() === 1;
-
-    $pdo->prepare("INSERT INTO site_events(event_type,path,referrer,ua_hash,ip_hash,session_id_hash,created_at) VALUES('pv',:path,:referrer,:ua,:ip,:marker,NOW())")->execute([
-        ':path' => $pathForStats,
-        ':referrer' => $referrer !== '' ? mb_substr($referrer, 0, 500) : null,
-        ':ua' => $ua !== '' ? hash('sha256', $ua) : null,
-        ':ip' => $hash,
-        ':marker' => analytics_beacon_marker_hash(),
-    ]);
-    $pdo->prepare('INSERT INTO daily_stats(stat_date,pv,uu,in_count,out_count,updated_at) VALUES(:d,1,:uu,0,0,NOW()) ON DUPLICATE KEY UPDATE pv = pv + 1, uu = uu + VALUES(uu), updated_at = NOW()')->execute([':d' => $today, ':uu' => $isUniqueVisitor ? 1 : 0]);
-
-    $host = analytics_normalize_host((string)($_SERVER['HTTP_HOST'] ?? ''));
-    $externalReferrer = $host !== '' && $refererHost !== ''
-        && analytics_normalize_host((string)$refererHost) !== $host;
-    if ($refCode !== '' || $externalReferrer) {
-        $pdo->prepare('INSERT INTO in_logs(created_at,ref_code,referer_host,path) VALUES(NOW(),:ref,:host,:path)')->execute([
-            ':ref' => $refCode,
-            ':host' => mb_substr((string)$refererHost, 0, 255),
-            ':path' => mb_substr($path, 0, 255),
+        $pdo = db();
+        $duplicateStmt = $pdo->prepare(
+            "SELECT 1 FROM site_events
+             WHERE event_type = 'pv'
+               AND session_id_hash = :marker
+               AND ip_hash = :visitor
+               AND path = :path
+               AND created_at >= DATE_SUB(NOW(), INTERVAL 10 SECOND)
+             LIMIT 1"
+        );
+        $duplicateStmt->execute([
+            ':marker' => analytics_beacon_marker_hash(),
+            ':visitor' => $hash,
+            ':path' => $pathForStats,
         ]);
-        $pdo->prepare('UPDATE daily_stats SET in_count = in_count + 1, updated_at = NOW() WHERE stat_date=:d')->execute([':d' => $today]);
-    }
+        if ($duplicateStmt->fetchColumn() !== false) {
+            return;
+        }
+
+        $visitStmt = $pdo->prepare('INSERT IGNORE INTO visit_sessions(stat_date,visitor_hash,first_seen_at) VALUES(:d,:h,NOW())');
+        $visitStmt->execute([':d' => $today, ':h' => $hash]);
+        $isUniqueVisitor = $visitStmt->rowCount() === 1;
+
+        $pdo->prepare("INSERT INTO site_events(event_type,path,referrer,ua_hash,ip_hash,session_id_hash,created_at) VALUES('pv',:path,:referrer,:ua,:ip,:marker,NOW())")->execute([
+            ':path' => $pathForStats,
+            ':referrer' => $referrer !== '' ? mb_substr($referrer, 0, 500) : null,
+            ':ua' => $ua !== '' ? hash('sha256', $ua) : null,
+            ':ip' => $hash,
+            ':marker' => analytics_beacon_marker_hash(),
+        ]);
+        $pdo->prepare('INSERT INTO daily_stats(stat_date,pv,uu,in_count,out_count,updated_at) VALUES(:d,1,:uu,0,0,NOW()) ON DUPLICATE KEY UPDATE pv = pv + 1, uu = uu + VALUES(uu), updated_at = NOW()')->execute([':d' => $today, ':uu' => $isUniqueVisitor ? 1 : 0]);
+
+        $host = analytics_normalize_host((string)($_SERVER['HTTP_HOST'] ?? ''));
+        $externalReferrer = $host !== '' && $refererHost !== ''
+            && analytics_normalize_host((string)$refererHost) !== $host;
+        if ($refCode !== '' || $externalReferrer) {
+            $inSource = $refCode !== '' ? 'ref:' . mb_substr($refCode, 0, 64) : 'host:' . analytics_normalize_host((string)$refererHost);
+            $inDuplicateStmt = $pdo->prepare(
+                "SELECT 1 FROM site_events
+                 WHERE event_type = 'in'
+                   AND session_id_hash = :visitor
+                   AND referrer = :source
+                   AND created_at >= CURDATE()
+                   AND created_at < CURDATE() + INTERVAL 1 DAY
+                 LIMIT 1"
+            );
+            $inDuplicateStmt->execute([':visitor' => $hash, ':source' => $inSource]);
+            if ($inDuplicateStmt->fetchColumn() !== false) {
+                return;
+            }
+
+            $pdo->prepare(
+                "INSERT INTO site_events(event_type,path,referrer,ua_hash,ip_hash,session_id_hash,created_at)
+                 VALUES('in',:path,:source,NULL,:ip,:visitor,NOW())"
+            )->execute([
+                ':path' => mb_substr($path, 0, 255),
+                ':source' => $inSource,
+                ':ip' => $hash,
+                ':visitor' => $hash,
+            ]);
+            $pdo->prepare('INSERT INTO in_logs(created_at,ref_code,referer_host,path) VALUES(NOW(),:ref,:host,:path)')->execute([
+                ':ref' => $refCode,
+                ':host' => mb_substr((string)$refererHost, 0, 255),
+                ':path' => mb_substr($path, 0, 255),
+            ]);
+            $pdo->prepare('UPDATE daily_stats SET in_count = in_count + 1, updated_at = NOW() WHERE stat_date=:d')->execute([':d' => $today]);
+        }
     } catch (Throwable $e) {
         analytics_disable_for_request($e);
     }
@@ -181,60 +261,60 @@ function analytics_log_out(string $targetUrl, string $refCode, string $path): vo
         return;
     }
     try {
-    $today = date('Y-m-d');
-    $pdo = db();
-    $visitorHash = analytics_visitor_hash((string)($_SERVER['HTTP_USER_AGENT'] ?? ''));
-    $targetHash = hash('sha256', $targetUrl);
+        $today = date('Y-m-d');
+        $pdo = db();
+        $visitorHash = analytics_visitor_hash((string)($_SERVER['HTTP_USER_AGENT'] ?? ''));
+        $targetHash = hash('sha256', $targetUrl);
 
-    // Count one outbound visit per visitor and destination per day. This keeps
-    // reloads, link prefetchers and repeated taps from inflating the dashboard.
-    $duplicateStmt = $pdo->prepare(
-        "SELECT 1 FROM site_events
-         WHERE event_type = 'out'
-           AND session_id_hash = :visitor
-           AND path = :target
-           AND created_at >= CURDATE()
-           AND created_at < CURDATE() + INTERVAL 1 DAY
-         LIMIT 1"
-    );
-    $duplicateStmt->execute([':visitor' => $visitorHash, ':target' => $targetHash]);
-    if ($duplicateStmt->fetchColumn() !== false) {
-        return;
-    }
-    $pdo->prepare(
-        "INSERT INTO site_events(event_type,path,referrer,ua_hash,ip_hash,session_id_hash,created_at)
-         VALUES('out',:target,:url,:ua,:ip,:visitor,NOW())"
-    )->execute([
-        ':target' => $targetHash,
-        ':url' => mb_substr($targetUrl, 0, 500),
-        ':ua' => (($ua = (string)($_SERVER['HTTP_USER_AGENT'] ?? '')) !== '') ? hash('sha256', $ua) : null,
-        ':ip' => $visitorHash,
-        ':visitor' => $visitorHash,
-    ]);
-
-    $pdo->prepare('INSERT INTO out_logs(created_at,ref_code,target_url,path) VALUES(NOW(),:ref,:url,:path)')->execute([
-        ':ref' => mb_substr($refCode, 0, 64),
-        ':url' => mb_substr($targetUrl, 0, 1000),
-        ':path' => mb_substr($path, 0, 255),
-    ]);
-    $pdo->prepare('INSERT INTO daily_stats(stat_date,pv,uu,in_count,out_count,updated_at) VALUES(:d,0,0,0,1,NOW()) ON DUPLICATE KEY UPDATE out_count = out_count + 1, updated_at = NOW()')->execute([':d' => $today]);
-
-    if (db_table_exists('item_out_click_daily')) {
-        $itemStmt = $pdo->prepare('SELECT id FROM items WHERE affiliate_url = :url LIMIT 1');
-        $itemStmt->execute([':url' => $targetUrl]);
-        $itemId = (int)($itemStmt->fetchColumn() ?: 0);
-        if ($itemId > 0) {
-            $clickStmt = $pdo->prepare(
-                'INSERT IGNORE INTO item_out_click_daily(item_id, click_date, visitor_hash, clicked_at)
-                 VALUES(:item_id, :click_date, :visitor_hash, NOW())'
-            );
-            $clickStmt->execute([
-                ':item_id' => $itemId,
-                ':click_date' => $today,
-                ':visitor_hash' => $visitorHash,
-            ]);
+        // Count one outbound visit per visitor and destination per day. This keeps
+        // reloads, link prefetchers and repeated taps from inflating the dashboard.
+        $duplicateStmt = $pdo->prepare(
+            "SELECT 1 FROM site_events
+             WHERE event_type = 'out'
+               AND session_id_hash = :visitor
+               AND path = :target
+               AND created_at >= CURDATE()
+               AND created_at < CURDATE() + INTERVAL 1 DAY
+             LIMIT 1"
+        );
+        $duplicateStmt->execute([':visitor' => $visitorHash, ':target' => $targetHash]);
+        if ($duplicateStmt->fetchColumn() !== false) {
+            return;
         }
-    }
+        $pdo->prepare(
+            "INSERT INTO site_events(event_type,path,referrer,ua_hash,ip_hash,session_id_hash,created_at)
+             VALUES('out',:target,:url,:ua,:ip,:visitor,NOW())"
+        )->execute([
+            ':target' => $targetHash,
+            ':url' => mb_substr($targetUrl, 0, 500),
+            ':ua' => (($ua = (string)($_SERVER['HTTP_USER_AGENT'] ?? '')) !== '') ? hash('sha256', $ua) : null,
+            ':ip' => $visitorHash,
+            ':visitor' => $visitorHash,
+        ]);
+
+        $pdo->prepare('INSERT INTO out_logs(created_at,ref_code,target_url,path) VALUES(NOW(),:ref,:url,:path)')->execute([
+            ':ref' => mb_substr($refCode, 0, 64),
+            ':url' => mb_substr($targetUrl, 0, 1000),
+            ':path' => mb_substr($path, 0, 255),
+        ]);
+        $pdo->prepare('INSERT INTO daily_stats(stat_date,pv,uu,in_count,out_count,updated_at) VALUES(:d,0,0,0,1,NOW()) ON DUPLICATE KEY UPDATE out_count = out_count + 1, updated_at = NOW()')->execute([':d' => $today]);
+
+        if (db_table_exists('item_out_click_daily')) {
+            $itemStmt = $pdo->prepare('SELECT id FROM items WHERE affiliate_url = :url LIMIT 1');
+            $itemStmt->execute([':url' => $targetUrl]);
+            $itemId = (int)($itemStmt->fetchColumn() ?: 0);
+            if ($itemId > 0) {
+                $clickStmt = $pdo->prepare(
+                    'INSERT IGNORE INTO item_out_click_daily(item_id, click_date, visitor_hash, clicked_at)
+                     VALUES(:item_id, :click_date, :visitor_hash, NOW())'
+                );
+                $clickStmt->execute([
+                    ':item_id' => $itemId,
+                    ':click_date' => $today,
+                    ':visitor_hash' => $visitorHash,
+                ]);
+            }
+        }
     } catch (Throwable $e) {
         analytics_disable_for_request($e);
     }

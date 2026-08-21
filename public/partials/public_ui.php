@@ -82,7 +82,6 @@ if (!function_exists('pcf_looks_like_image_url')) {
     }
 }
 
-
 if (!function_exists('pcf_is_self_hosted_fanza_image_url')) {
     function pcf_is_self_hosted_fanza_image_url(string $url): bool
     {
@@ -608,15 +607,6 @@ if (!function_exists('pcf_render_item_card')) {
 
         $sampleImagesUrl = public_url('sample_images.php?content_id=' . rawurlencode($contentId));
         $hasSampleImages = pcf_pick_sample_image_urls_from_raw($raw) !== [];
-        if (!$hasSampleImages) {
-            foreach (pcf_parse_image_urls((string)($item['image_list'] ?? '')) as $image) {
-                $sampleImageCandidate = trim((string)$image);
-                if ($sampleImageCandidate !== '' && !pcf_is_self_hosted_fanza_image_url($sampleImageCandidate)) {
-                    $hasSampleImages = true;
-                    break;
-                }
-            }
-        }
 
         echo '<article class="pcf-dm-card">';
         echo '<a class="pcf-dm-card__image-link" href="' . e($itemUrl) . '">';

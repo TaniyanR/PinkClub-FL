@@ -87,7 +87,6 @@ function parse_index_image_urls(?string $value): array
     return array_values(array_filter(array_map('trim', $parts), static fn(string $v): bool => $v !== ''));
 }
 
-
 function index_is_self_hosted_fanza_image_url(string $url): bool
 {
     $value = trim($url);
@@ -293,16 +292,6 @@ function item_sample_state(array $item): array
                         break 2;
                     }
                 }
-            }
-        }
-    }
-
-    if (!$hasImageSample) {
-        foreach (parse_index_image_urls((string)($item['image_list'] ?? '')) as $image) {
-            $sampleImageCandidate = trim((string)$image);
-            if ($sampleImageCandidate !== '' && !index_is_self_hosted_fanza_image_url($sampleImageCandidate)) {
-                $hasImageSample = true;
-                break;
             }
         }
     }

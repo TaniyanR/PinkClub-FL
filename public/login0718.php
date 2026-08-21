@@ -14,6 +14,11 @@ if (($autoSetup['success'] ?? false) !== true) {
     app_redirect('/public/setup_check.php');
 }
 
+$initialAdminPassword = isset($_SESSION['installer_initial_password'])
+    ? (string)$_SESSION['installer_initial_password']
+    : '';
+unset($_SESSION['installer_initial_password']);
+
 if (auth_user()) {
     app_redirect(ADMIN_HOME_PATH);
 }
@@ -53,6 +58,7 @@ $faviconType = strtolower((string)pathinfo($faviconPath, PATHINFO_EXTENSION)) ==
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
   <title><?= e(APP_NAME) ?> 管理ログイン</title>
   <?php if ($faviconUrl !== ''): ?>
     <link rel="icon" href="<?= e($faviconUrl) ?>" sizes="any" type="<?= e($faviconType) ?>">
@@ -66,6 +72,15 @@ $faviconType = strtolower((string)pathinfo($faviconPath, PATHINFO_EXTENSION)) ==
     <section class="login-card">
       <h1 class="login-title"><?= e(APP_NAME) ?></h1>
       <p class="login-subtitle">管理画面ログイン</p>
+
+      <?php if ($initialAdminPassword !== ''): ?>
+        <div class="alert alert-warning" role="status">
+          <strong>初回ログイン情報</strong><br>
+          ユーザー名：<code>admin</code><br>
+          パスワード：<code><?= e($initialAdminPassword) ?></code><br>
+          <small>この表示は一度だけです。ログイン後、個人設定でログインIDとパスワードを変更してください。</small>
+        </div>
+      <?php endif; ?>
 
       <?php if ($setupMessage !== null): ?>
         <div class="alert alert-warning" role="alert">
