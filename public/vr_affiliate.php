@@ -6,6 +6,48 @@ require_once __DIR__ . '/_bootstrap.php';
 
 header('X-Robots-Tag: noindex, nofollow', true);
 
+function vr_affiliate_decode_raw(mixed $value): array
+{
+    if (!is_string($value) || trim($value) === '') {
+        return [];
+    }
+
+    $decoded = json_decode($value, true);
+    if (is_string($decoded)) {
+        $decoded = json_decode($decoded, true);
+    }
+
+    return is_array($decoded) ? $decoded : [];
+}
+
+function vr_affiliate_find_url(mixed $value): string
+{
+    if (!is_array($value)) {
+        return '';
+    }
+
+    foreach (['affiliateURL', 'affiliate_url'] as $key) {
+        if (isset($value[$key]) && is_string($value[$key])) {
+            $candidate = trim($value[$key]);
+            if ($candidate !== '') {
+                return $candidate;
+            }
+        }
+    }
+
+    foreach ($value as $child) {
+        if (!is_array($child)) {
+            continue;
+        }
+        $candidate = vr_affiliate_find_url($child);
+        if ($candidate !== '') {
+            return $candidate;
+        }
+    }
+
+    return '';
+}
+
 $itemId = max(0, (int)($_GET['id'] ?? 0));
 if ($itemId <= 0) {
     http_response_code(404);
@@ -25,20 +67,9 @@ if (!is_array($item)) {
     exit;
 }
 
-// The public card already decides when to expose the VR shortcut. Do not reject
-// a valid item here only because the API title itself does not contain the text "VR".
 $affiliateUrl = trim((string)($item['affiliate_url'] ?? ''));
 if ($affiliateUrl === '') {
-    $raw = json_decode((string)($item['raw_json'] ?? ''), true);
-    if (is_array($raw)) {
-        foreach (['affiliateURL', 'affiliate_url'] as $key) {
-            $candidate = trim((string)($raw[$key] ?? ''));
-            if ($candidate !== '') {
-                $affiliateUrl = $candidate;
-                break;
-            }
-        }
-    }
+    $affiliateUrl = vr_affiliate_find_url(vr_affiliate_decode_raw((string)($item['raw_json'] ?? '')));
 }
 
 $affiliateUrl = html_entity_decode($affiliateUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8');
