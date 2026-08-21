@@ -255,14 +255,11 @@
   prepareVrControls(document);
 
   document.addEventListener('click', function (event) {
-    var trigger = event.target.closest('.sample-image-trigger, button[onclick*="sample_images.php"]');
-    if (!trigger || trigger.disabled) return;
-    var url = trigger.dataset.sampleImagesUrl || legacyUrl(trigger);
-    if (!url) return;
+    var trigger = event.target.closest('.sample-image-trigger');
+    if (!trigger || !trigger.dataset.sampleImagesUrl) return;
     event.preventDefault();
-    event.stopImmediatePropagation();
-    openModal(trigger, url);
-  }, true);
+    openModal(trigger, trigger.dataset.sampleImagesUrl);
+  });
 
   document.addEventListener('keydown', function (event) {
     if (!modal || !modal.classList.contains('is-open')) return;
