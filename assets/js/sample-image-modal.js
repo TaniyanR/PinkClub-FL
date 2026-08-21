@@ -38,7 +38,7 @@
         '</header>' +
         '<div class="sample-image-modal__stage">' +
           '<button type="button" class="sample-image-modal__arrow sample-image-modal__arrow--prev" aria-label="前の画像">‹</button>' +
-          '<img class="sample-image-modal__main" src="" alt="">' +
+          '<img class="sample-image-modal__main" alt="">' +
           '<button type="button" class="sample-image-modal__arrow sample-image-modal__arrow--next" aria-label="次の画像">›</button>' +
           '<p class="sample-image-modal__status" role="status"></p>' +
         '</div>' +
@@ -90,7 +90,60 @@
     });
   }
 
-  function openModal(trigger) {
+  function legacyUrl(trigger) {
+    var raw = trigger.getAttribute('onclick') || '';
+    var match = raw.match(/window\.open\(['"]([^'"]*sample_images\.php[^'"]*)['"]/i);
+    return match ? match[1].replace(/&amp;/g, '&') : '';
+  }
+
+  function normalizeJsonUrl(url) {
+    if (!url) return '';
+    try {
+      var parsed = new URL(url, window.location.href);
+      parsed.searchParams.set('format', 'json');
+      return parsed.toString();
+    } catch (e) {
+      return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'format=json';
+    }
+  }
+
+  function applyImages(payload, trigger) {
+    images = Array.isArray(payload.images) ? payload.images.map(function (imageUrl) {
+      try {
+        return new URL(String(imageUrl || ''), window.location.href).toString();
+      } catch (_) {
+        return '';
+      }
+    }).filter(function (imageUrl) { return /^https?:\/\//i.test(imageUrl); }) : [];
+    titleNode.textContent = payload.title || trigger.dataset.sampleImagesTitle || 'サンプル画像';
+    if (!images.length) return false;
+    renderThumbs();
+    showImage(0);
+    return true;
+  }
+
+  function loadLegacyHtml(url, trigger) {
+    return fetch(url, { credentials: 'same-origin', headers: { Accept: 'text/html' } })
+      .then(function (response) {
+        if (!response.ok) throw new Error('legacy sample image request failed');
+        return response.text();
+      })
+      .then(function (html) {
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var found = [];
+        doc.querySelectorAll('.sample-frame img, .sample-scroll img, main img').forEach(function (image) {
+          var src = image.getAttribute('src') || '';
+          try {
+            src = new URL(src, url).toString();
+          } catch (_) {}
+          if (/^https?:\/\//i.test(src) && found.indexOf(src) === -1) found.push(src);
+        });
+        var heading = doc.querySelector('h1, h2, title');
+        return applyImages({ images: found, title: heading ? heading.textContent.trim() : '' }, trigger);
+      });
+  }
+
+  function openModal(trigger, url) {
     buildModal();
     returnFocus = trigger;
     images = [];
@@ -105,23 +158,26 @@
     document.body.classList.add('sample-image-modal-open');
     modal.querySelector('.sample-image-modal__close').focus();
 
-    fetch(trigger.dataset.sampleImagesUrl, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+    fetch(normalizeJsonUrl(url), { credentials: 'same-origin', headers: { Accept: 'application/json' } })
       .then(function (response) {
         if (!response.ok) throw new Error('sample image request failed');
         return response.json();
       })
       .then(function (payload) {
-        images = Array.isArray(payload.images) ? payload.images.filter(function (url) { return /^https?:\/\//i.test(url); }) : [];
-        titleNode.textContent = payload.title || trigger.dataset.sampleImagesTitle || 'サンプル画像';
-        if (!images.length) {
-          statusNode.textContent = '表示できるサンプル画像がありません。';
-          return;
+        if (!applyImages(payload, trigger)) {
+          return loadLegacyHtml(url, trigger).then(function (loaded) {
+            if (!loaded) window.location.assign(url);
+          });
         }
-        renderThumbs();
-        showImage(0);
       })
       .catch(function () {
-        statusNode.textContent = 'サンプル画像を読み込めませんでした。時間をおいてもう一度お試しください。';
+        loadLegacyHtml(url, trigger)
+          .then(function (loaded) {
+            if (!loaded) window.location.assign(url);
+          })
+          .catch(function () {
+            window.location.assign(url);
+          });
       });
   }
 
@@ -199,11 +255,14 @@
   prepareVrControls(document);
 
   document.addEventListener('click', function (event) {
-    var trigger = event.target.closest('.sample-image-trigger');
-    if (!trigger || !trigger.dataset.sampleImagesUrl) return;
+    var trigger = event.target.closest('.sample-image-trigger, button[onclick*="sample_images.php"]');
+    if (!trigger || trigger.disabled) return;
+    var url = trigger.dataset.sampleImagesUrl || legacyUrl(trigger);
+    if (!url) return;
     event.preventDefault();
-    openModal(trigger);
-  });
+    event.stopImmediatePropagation();
+    openModal(trigger, url);
+  }, true);
 
   document.addEventListener('keydown', function (event) {
     if (!modal || !modal.classList.contains('is-open')) return;
