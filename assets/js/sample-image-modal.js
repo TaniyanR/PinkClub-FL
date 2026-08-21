@@ -107,6 +107,36 @@
     }
   }
 
+  function applyImages(payload, trigger) {
+    images = Array.isArray(payload.images) ? payload.images.filter(function (imageUrl) { return /^https?:\/\//i.test(imageUrl); }) : [];
+    titleNode.textContent = payload.title || trigger.dataset.sampleImagesTitle || 'サンプル画像';
+    if (!images.length) return false;
+    renderThumbs();
+    showImage(0);
+    return true;
+  }
+
+  function loadLegacyHtml(url, trigger) {
+    return fetch(url, { credentials: 'same-origin', headers: { Accept: 'text/html' } })
+      .then(function (response) {
+        if (!response.ok) throw new Error('legacy sample image request failed');
+        return response.text();
+      })
+      .then(function (html) {
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var found = [];
+        doc.querySelectorAll('.sample-frame img, .sample-scroll img, main img').forEach(function (image) {
+          var src = image.getAttribute('src') || '';
+          try {
+            src = new URL(src, url).toString();
+          } catch (_) {}
+          if (/^https?:\/\//i.test(src) && found.indexOf(src) === -1) found.push(src);
+        });
+        var heading = doc.querySelector('h1, h2, title');
+        return applyImages({ images: found, title: heading ? heading.textContent.trim() : '' }, trigger);
+      });
+  }
+
   function openModal(trigger, url) {
     buildModal();
     returnFocus = trigger;
@@ -128,17 +158,20 @@
         return response.json();
       })
       .then(function (payload) {
-        images = Array.isArray(payload.images) ? payload.images.filter(function (imageUrl) { return /^https?:\/\//i.test(imageUrl); }) : [];
-        titleNode.textContent = payload.title || trigger.dataset.sampleImagesTitle || 'サンプル画像';
-        if (!images.length) {
-          statusNode.textContent = '表示できるサンプル画像がありません。';
-          return;
+        if (!applyImages(payload, trigger)) {
+          return loadLegacyHtml(url, trigger).then(function (loaded) {
+            if (!loaded) statusNode.textContent = '表示できるサンプル画像がありません。';
+          });
         }
-        renderThumbs();
-        showImage(0);
       })
       .catch(function () {
-        statusNode.textContent = 'サンプル画像を読み込めませんでした。時間をおいてもう一度お試しください。';
+        loadLegacyHtml(url, trigger)
+          .then(function (loaded) {
+            if (!loaded) statusNode.textContent = '表示できるサンプル画像がありません。';
+          })
+          .catch(function () {
+            statusNode.textContent = 'サンプル画像を読み込めませんでした。時間をおいてもう一度お試しください。';
+          });
       });
   }
 
