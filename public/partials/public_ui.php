@@ -388,6 +388,8 @@ if (!function_exists('pcf_pick_sample_image_urls_from_raw')) {
                     break;
                 }
             }
+        } elseif (is_string($sampleImageURL)) {
+            pcf_collect_sample_image_urls_from_value($sampleImageURL, $images);
         }
 
         return array_values(array_unique(array_filter(array_map(static fn($u) => trim((string)$u), $images))));
@@ -605,7 +607,7 @@ if (!function_exists('pcf_render_item_card')) {
             $sampleMovieUrl = (string)($movieUrls[0] ?? '');
         }
 
-        $sampleImagesUrl = public_url('sample_images.php?content_id=' . rawurlencode($contentId));
+        $sampleImagesUrl = public_url('sample_images.php?content_id=' . rawurlencode($contentId) . '&format=json');
         $hasSampleImages = pcf_pick_sample_image_urls_from_raw($raw) !== [];
 
         echo '<article class="pcf-dm-card">';
