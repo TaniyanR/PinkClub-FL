@@ -7,8 +7,7 @@ require_once __DIR__ . '/../../lib/db.php';
 
 $items = [];
 try {
-    rss_widget_bootstrap(false);
-    $items = array_merge(rss_widget_direct_items(20, true), rss_pick_display_items(20, true, 14));
+    $items = rss_widget_direct_items(20, true);
     if (count($items) > 1) {
         shuffle($items);
     }
@@ -88,7 +87,7 @@ $GLOBALS['pcf_rss_widget_used_keys'] = $rssUsedKeys;
         <?php foreach ($items as $item) : ?>
             <li class="rss-image-list__item">
                 <?php if (trim((string)($item['image_url'] ?? '')) !== '') : ?>
-                    <img src="<?php echo e((string)$item['image_url']); ?>" alt="" loading="lazy" onerror="this.closest('li').remove();">
+                    <img src="<?php echo e((string)$item['image_url']); ?>" alt="" loading="lazy" decoding="async" onerror="this.closest('li').remove();">
                 <?php endif; ?>
                 <a href="<?php echo e((string)($item['link'] ?? '')); ?>" target="_blank" rel="noopener noreferrer"><?php echo e((string)($item['title'] ?? '')); ?></a>
             </li>

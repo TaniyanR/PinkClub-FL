@@ -7,6 +7,8 @@ auth_require_admin();
 $title = 'サイト設定';
 $message = null;
 $error = null;
+$recommendedTagline = 'FANZAの新作・人気作品を、ジャンル・メーカー・シリーズなどから探せるシンプルな作品情報サイトです。サンプル動画・画像を確認しながら作品を探せます。';
+$recommendedKeywords = 'FANZA,アダルト動画,新作AV,人気AV,サンプル動画,サンプル画像,ジャンル,メーカー,シリーズ';
 
 $uploadDir = __DIR__ . '/../public/uploads/site_settings';
 if (!is_dir($uploadDir)) {
@@ -111,6 +113,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $logoPath = trim(site_setting_get('site.logo_path', ''));
 $faviconPath = trim(site_setting_get('site.favicon_path', ''));
+$taglineValue = trim(site_setting_get('site.tagline', ''));
+$keywordsValue = trim(site_setting_get('site.keywords', ''));
 
 require __DIR__ . '/includes/header.php';
 ?>
@@ -142,10 +146,12 @@ require __DIR__ . '/includes/header.php';
       <input type="url" value="<?= e(public_url('sitemap.php')) ?>" readonly>
     </label>
     <label>キャッチフレーズ（検索結果説明用）
-      <input type="text" name="site_tagline" value="<?= e(site_setting_get('site.tagline', '')) ?>">
+      <input type="text" name="site_tagline" value="<?= e($taglineValue) ?>" placeholder="<?= e($taglineValue === '' ? $recommendedTagline : '') ?>">
+      <?php if ($taglineValue === ''): ?><small>候補を表示しています。内容を確認して保存してください。</small><?php endif; ?>
     </label>
     <label>キーワード（meta keywords）
-      <input type="text" name="site_keywords" value="<?= e(site_setting_get('site.keywords', '')) ?>" placeholder="例: FANZA,動画,アフィリエイト">
+      <input type="text" name="site_keywords" value="<?= e($keywordsValue) ?>" placeholder="<?= e($keywordsValue === '' ? $recommendedKeywords : '') ?>">
+      <?php if ($keywordsValue === ''): ?><small>候補を表示しています。自動保存はされません。</small><?php endif; ?>
     </label>
 
     <label>タイトルロゴ（横250〜400px / 高さ50〜100px）

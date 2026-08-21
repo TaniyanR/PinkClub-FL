@@ -5,11 +5,9 @@ require_once __DIR__ . '/_helpers.php';
 require_once __DIR__ . '/../../lib/app_features.php';
 require_once __DIR__ . '/../../lib/db.php';
 
-rss_widget_bootstrap(false);
-
 $items = [];
 try {
-    $items = array_merge(rss_widget_direct_items(250, false), rss_pick_display_items(250, false, 14));
+    $items = rss_widget_direct_items(250, false);
 } catch (Throwable $e) {
     $items = [];
 }

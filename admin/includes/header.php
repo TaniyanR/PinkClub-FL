@@ -66,6 +66,7 @@ $faviconType = strtolower((string)pathinfo($faviconPath, PATHINFO_EXTENSION)) ==
     <link rel="apple-touch-icon" href="<?= e($faviconUrl) ?>">
   <?php endif; ?>
   <link rel="stylesheet" href="<?= e(asset_url('css/style.css')) ?>">
+  <link rel="stylesheet" href="<?= e(asset_url('css/admin-auto-mobile.css')) ?>">
 </head>
 <body class="admin-page">
 <input class="admin-menu-toggle" type="checkbox" id="admin-menu-toggle" hidden>

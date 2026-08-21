@@ -37,122 +37,34 @@ if (!function_exists('should_show_ad')) {
     }
 }
 
-
 if (!function_exists('rss_widget_direct_items')) {
     function rss_widget_direct_items(int $limit, bool $requireImage = false): array
     {
-        static $cache = [];
+        // Compatibility name retained for callers. This is deliberately DB-only:
+        // public rendering must never fetch external RSS or create/alter tables.
         if ($limit <= 0 || !function_exists('db')) {
             return [];
         }
 
-        $cacheKey = $limit . '|' . ($requireImage ? '1' : '0');
-        if (isset($cache[$cacheKey])) {
-            return $cache[$cacheKey];
-        }
-
+        $limit = max(1, min(250, $limit));
+        $scanLimit = max($limit, min(2000, $limit * 10));
         try {
-            $stmt = db()->query('SELECT ps.name AS source_name, pr.feed_url FROM partner_rss pr INNER JOIN partner_sites ps ON ps.id = pr.partner_site_id WHERE pr.feed_url <> "" AND COALESCE(pr.show_rss, pr.is_enabled, 1) = 1 ORDER BY RAND() LIMIT 50');
-            $sources = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+            $sql = 'SELECT ri.source_id, rs.name AS source_name, ri.title, ri.url AS link, ri.guid, ri.published_at, ri.image_url '
+                . 'FROM rss_items ri INNER JOIN rss_sources rs ON rs.id = ri.source_id '
+                . 'WHERE rs.is_enabled = 1 AND rs.source_type = "partner_link" '
+                . 'AND ri.published_at >= DATE_SUB(NOW(), INTERVAL 14 DAY) ';
+            if ($requireImage) {
+                $sql .= 'AND ri.image_url IS NOT NULL AND ri.image_url <> "" ';
+            }
+            $sql .= 'ORDER BY ri.published_at DESC, ri.id DESC LIMIT :scan_limit';
+            $stmt = db()->prepare($sql);
+            $stmt->bindValue(':scan_limit', $scanLimit, PDO::PARAM_INT);
+            $stmt->execute();
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            return is_array($rows) ? array_slice($rows, 0, $limit) : [];
         } catch (Throwable) {
-            try {
-                $stmt = db()->query('SELECT ps.name AS source_name, pr.feed_url FROM partner_rss pr INNER JOIN partner_sites ps ON ps.id = pr.partner_site_id WHERE pr.feed_url <> "" AND pr.is_enabled = 1 ORDER BY RAND() LIMIT 50');
-                $sources = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
-            } catch (Throwable) {
-                $sources = [];
-            }
-        }
-
-        if (!is_array($sources) || $sources === []) {
             return [];
         }
-
-        shuffle($sources);
-        $items = [];
-        $seen = [];
-        $perSourceLimit = $requireImage ? 5 : 5;
-        $context = stream_context_create(['http' => ['timeout' => 2, 'user_agent' => 'PinkClubRSS/1.0']]);
-        foreach ($sources as $source) {
-            $feedUrl = trim((string)($source['feed_url'] ?? ''));
-            if ($feedUrl === '') {
-                continue;
-            }
-
-            $xmlRaw = @file_get_contents($feedUrl, false, $context);
-            if (!is_string($xmlRaw) || $xmlRaw === '') {
-                continue;
-            }
-
-            libxml_use_internal_errors(true);
-            $xml = simplexml_load_string($xmlRaw);
-            if ($xml === false) {
-                continue;
-            }
-
-            $feedItems = $xml->channel->item ?? $xml->item ?? $xml->entry ?? [];
-            $sourceItems = [];
-            foreach ($feedItems as $feedItem) {
-                $link = trim((string)($feedItem->link ?? ''));
-                if ($link === '') {
-                    foreach ($feedItem->link ?? [] as $linkNode) {
-                        $attrs = $linkNode->attributes();
-                        $href = trim((string)($attrs['href'] ?? ''));
-                        if ($href !== '') {
-                            $link = $href;
-                            break;
-                        }
-                    }
-                }
-                $title = trim((string)($feedItem->title ?? ''));
-                if ($title === '' || $link === '') {
-                    continue;
-                }
-
-                $imageUrl = function_exists('rss_extract_first_image_url') ? rss_extract_first_image_url($feedItem) : '';
-                if ($requireImage && $imageUrl === '') {
-                    continue;
-                }
-
-                $guid = trim((string)($feedItem->guid ?? $feedItem->id ?? $link));
-                $key = function_exists('rss_normalize_url') ? rss_normalize_url($link) : mb_strtolower($link);
-                if ($key !== '' && isset($seen[$key])) {
-                    continue;
-                }
-                if ($key !== '') {
-                    $seen[$key] = true;
-                }
-
-                $publishedAt = trim((string)($feedItem->pubDate ?? $feedItem->published ?? $feedItem->updated ?? ''));
-                $timestamp = $publishedAt !== '' ? strtotime($publishedAt) : false;
-                $sourceItems[] = [
-                    'title' => $title,
-                    'link' => $link,
-                    'guid' => $guid,
-                    'published_at' => $timestamp !== false ? date('Y-m-d H:i:s', $timestamp) : '',
-                    'image_url' => $imageUrl,
-                    'source_id' => 0,
-                    'source_name' => (string)($source['source_name'] ?? ''),
-                ];
-
-                if (count($sourceItems) >= $perSourceLimit) {
-                    break;
-                }
-            }
-
-            if ($sourceItems !== []) {
-                shuffle($sourceItems);
-                $items = array_merge($items, $sourceItems);
-            }
-        }
-
-        if ($items === []) {
-            $cache[$cacheKey] = [];
-            return [];
-        }
-
-        shuffle($items);
-        $cache[$cacheKey] = array_slice($items, 0, $limit);
-        return $cache[$cacheKey];
     }
 }
 
@@ -180,7 +92,6 @@ if (!function_exists('render_shared_text_rss_widget')) {
         }
     }
 }
-
 
 if (!function_exists('render_shared_mobile_rss_widget')) {
     function render_shared_mobile_rss_widget(): void
@@ -210,15 +121,12 @@ if (!function_exists('render_shared_mobile_rss_widget')) {
 if (!function_exists('render_shared_content_ad_row')) {
     function render_shared_content_ad_row(string $position_key, string $page_type): void
     {
-        // Keep this helper limited to bottom placement to avoid top-of-content duplication.
         if ($position_key !== 'content_bottom') {
             return;
         }
 
         $prevUsedKeys = $GLOBALS['pcf_rss_widget_used_keys'] ?? null;
         $prevMaxItems = $GLOBALS['pcf_rss_widget_max_items'] ?? null;
-
-        // Reset widget tracking so this row can render independently from sidebar/top widgets.
         $GLOBALS['pcf_rss_widget_used_keys'] = [];
         $GLOBALS['pcf_rss_widget_max_items'] = 50;
 
@@ -226,9 +134,7 @@ if (!function_exists('render_shared_content_ad_row')) {
         include __DIR__ . '/rss_text_widget.php';
         $leftRssHtml = trim((string)ob_get_clean());
 
-        // Render right column independently so both columns can fill to max count.
         $GLOBALS['pcf_rss_widget_used_keys'] = [];
-
         ob_start();
         include __DIR__ . '/rss_text_widget.php';
         $rightRssHtml = trim((string)ob_get_clean());
@@ -238,7 +144,6 @@ if (!function_exists('render_shared_content_ad_row')) {
         } else {
             $GLOBALS['pcf_rss_widget_used_keys'] = $prevUsedKeys;
         }
-
         if ($prevMaxItems === null) {
             unset($GLOBALS['pcf_rss_widget_max_items']);
         } else {

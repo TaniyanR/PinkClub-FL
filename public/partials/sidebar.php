@@ -7,6 +7,10 @@ require_once __DIR__ . '/../../lib/app_features.php';
 require_once __DIR__ . '/../../lib/contact_page_slug.php';
 require_once __DIR__ . '/_helpers.php';
 
+if (function_exists('pcf_public_request_is_mobile') && pcf_public_request_is_mobile()) {
+    return;
+}
+
 $sortMode = site_setting_get('link.sort_mode', 'registered');
 $orderBy = $sortMode === 'kana' ? 'ps.name ASC, ps.id ASC' : 'ps.id DESC';
 $canRenderAd = function_exists('render_ad');
