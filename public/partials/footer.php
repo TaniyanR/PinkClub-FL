@@ -62,8 +62,9 @@ $copyrightYears = $copyrightStartYear >= $currentYear
 
 ?>
   <?php $pageType = function_exists('ad_current_page_type') ? ad_current_page_type() : 'home'; ?>
+  <?php $isMobileRequest = function_exists('pcf_public_request_is_mobile') && pcf_public_request_is_mobile(); ?>
   </div>
-  <?php if (site_setting_get('link.rss_display.pc_text_bottom', '1') === '1'): ?>
+  <?php if (!$isMobileRequest && site_setting_get('link.rss_display.pc_text_bottom', '1') === '1'): ?>
   <div class="site-main__rss only-pc">
     <?php render_shared_content_ad_row('content_bottom', $pageType); ?>
   </div>
@@ -81,7 +82,7 @@ $copyrightYears = $copyrightStartYear >= $currentYear
 <?php endif; ?>
 <footer class="site-footer">
   <div class="site-footer__credit">
-    <a href="https://affiliate.dmm.com/api/"><img src="https://p.dmm.co.jp/p/affiliate/web_service/r18_135_17.gif" width="135" height="17" alt="WEB SERVICE BY FANZA" /></a>
+    <a href="https://affiliate.dmm.com/api/"><img src="https://p.dmm.co.jp/p/affiliate/web_service/r18_135_17.gif" width="135" height="17" alt="WEB SERVICE BY FANZA"></a>
   </div>
   <div class="site-footer__copy">© <?= e($copyrightYears) ?> <a href="<?= e(public_url('')) ?>"><?= e($siteName) ?></a></div>
 </footer>
@@ -146,5 +147,9 @@ $copyrightYears = $copyrightStartYear >= $currentYear
 }());
 </script>
 <?php endif; ?>
+<script>
+document.documentElement.setAttribute('data-sample-image-modal-css', <?= json_encode(asset_url('css/sample-image-modal.css'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>);
+</script>
+<script src="<?= e(asset_url('js/sample-image-modal.js')) ?>"></script>
 </body>
 </html>
