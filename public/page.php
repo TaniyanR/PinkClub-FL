@@ -18,7 +18,6 @@ function contact_destination_email(): array
     return ['', 'admin email not found'];
 }
 
-
 function contact_form_strlen(string $value): int
 {
     return function_exists('mb_strlen') ? mb_strlen($value, 'UTF-8') : strlen($value);
@@ -122,24 +121,28 @@ function contact_duplicate_cleanup(): void
         return;
     }
 
-    $files = glob(rate_limit_dir() . DIRECTORY_SEPARATOR . 'contact_duplicate_*.json');
-    if (!is_array($files)) {
-        return;
-    }
-
     $expiresBefore = time() - 3600;
-    foreach ($files as $file) {
-        if (!is_string($file) || is_link($file) || !is_file($file)) {
-            continue;
+    $scanned = 0;
+    $deleted = 0;
+    try {
+        $iterator = new FilesystemIterator(rate_limit_dir(), FilesystemIterator::SKIP_DOTS);
+        foreach ($iterator as $fileInfo) {
+            if (++$scanned > 500 || $deleted >= 25) {
+                break;
+            }
+            if (!$fileInfo->isFile() || $fileInfo->isLink()) {
+                continue;
+            }
+            $base = $fileInfo->getFilename();
+            if (!preg_match('/\Acontact_duplicate_[a-f0-9]{64}\.json\z/', $base)) {
+                continue;
+            }
+            $mtime = $fileInfo->getMTime();
+            if ($mtime < $expiresBefore && @unlink($fileInfo->getPathname())) {
+                $deleted++;
+            }
         }
-        $base = basename($file);
-        if (!preg_match('/\Acontact_duplicate_[a-f0-9]{64}\.json\z/', $base)) {
-            continue;
-        }
-        $mtime = @filemtime($file);
-        if (is_int($mtime) && $mtime < $expiresBefore) {
-            @unlink($file);
-        }
+    } catch (Throwable) {
     }
 }
 
@@ -190,11 +193,11 @@ function contact_has_newline(string $value): bool
     return str_contains($value, "\r") || str_contains($value, "\n");
 }
 
-function about_access_ranking_text(): string
+function about_access_ranking_html(): string
 {
     try {
         if (!db_table_exists('in_logs')) {
-            return 'アクセスランキングのデータがありません。';
+            return '<p>アクセスランキングのデータがありません。</p>';
         }
 
         $stmt = db()->query('SELECT COALESCE(NULLIF(ps.name, ""), NULLIF(in_logs.referer_host, ""), NULLIF(in_logs.ref_code, "")) AS site_name, COUNT(*) AS in_count FROM in_logs LEFT JOIN partner_sites ps ON ps.ref_code = in_logs.ref_code GROUP BY site_name ORDER BY in_count DESC, site_name ASC LIMIT 10');
@@ -204,19 +207,18 @@ function about_access_ranking_text(): string
     }
 
     if ($rows === []) {
-        return 'アクセスランキングのデータがありません。';
+        return '<p>アクセスランキングのデータがありません。</p>';
     }
 
-    $lines = [];
+    $html = '<div class="grid">';
     foreach ($rows as $index => $row) {
         $siteName = trim((string)($row['site_name'] ?? ''));
         if ($siteName === '') {
             $siteName = '不明';
         }
-        $lines[] = (string)($index + 1) . '. ' . $siteName . '：' . (string)((int)($row['in_count'] ?? 0));
+        $html .= '<article class="card"><strong>' . e((string)($index + 1)) . '位</strong><div>' . e($siteName) . '</div><div>' . e((string)((int)($row['in_count'] ?? 0))) . 'アクセス</div></article>';
     }
-
-    return implode("\n", $lines);
+    return $html . '</div>';
 }
 
 $slug = trim((string)($_GET['slug'] ?? ''));
@@ -397,12 +399,19 @@ if ($isContactPage && (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST')) {
 
 $contactFormId = $isContactPage && !$contactSuccess ? contact_form_issue_id() : '';
 
-
+$accessRankingMarker = '__PCF_ACCESS_RANKING__';
+$privacyLinkMarker = '__PCF_PRIVACY_LINK__';
 if ($slug === 'about' || $slug === 'privacy-policy') {
+    $body = (string)$p['body'];
+    $body = str_replace(
+        [public_url('feed.php'), '/feed.php'],
+        [public_url('feed-60.php'), '/feed-60.php'],
+        $body
+    );
     $p['body'] = str_replace(
         ['[サイト名]', '[サイトURL]', '[サイトRSS]', '[アクセスランキング]', '[Privacy Policy(URL付き)]'],
-        [site_setting_get('site.title', site_setting_get('site.name', APP_NAME)), site_setting_get('site.url', app_url()), public_url('feed.php'), about_access_ranking_text(), 'Privacy Policy（' . public_url('page.php?slug=privacy-policy') . '）'],
-        (string)$p['body']
+        [site_setting_get('site.title', site_setting_get('site.name', APP_NAME)), site_setting_get('site.url', app_url()), public_url('feed-60.php'), $accessRankingMarker, $privacyLinkMarker],
+        $body
     );
 }
 
@@ -413,6 +422,14 @@ $ogUrl = $canonicalUrl;
 $pageBodyHtml = nl2br(e((string)$p['body']));
 if ($slug === 'about') {
     $pageBodyHtml = str_replace(['&lt;h3&gt;', '&lt;/h3&gt;'], ['<h3>', '</h3>'], $pageBodyHtml);
+}
+if ($slug === 'about' || $slug === 'privacy-policy') {
+    $contactHref = e(public_url('page.php?slug=' . CONTACT_PAGE_SLUG));
+    $privacyHref = e(public_url('page.php?slug=privacy-policy'));
+    $pageBodyHtml = str_replace(e($accessRankingMarker), about_access_ranking_html(), $pageBodyHtml);
+    $pageBodyHtml = str_replace(e($privacyLinkMarker), '<a href="' . $privacyHref . '">Privacy Policy</a>', $pageBodyHtml);
+    $pageBodyHtml = str_replace('こちら「お問い合わせ」', 'こちら「<a href="' . $contactHref . '">お問い合わせ</a>」', $pageBodyHtml);
+    $pageBodyHtml = str_replace('下記の「お問い合わせ」', '下記の「<a href="' . $contactHref . '">お問い合わせ</a>」', $pageBodyHtml);
 }
 
 include __DIR__ . '/partials/header.php';
