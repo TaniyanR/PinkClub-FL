@@ -90,9 +90,9 @@ require __DIR__ . '/includes/header.php';
   <form method="post" class="stack" style="max-width:980px;">
     <?= csrf_input() ?>
 
-    <div style="display:grid;grid-template-columns:160px minmax(280px,1fr);gap:12px 16px;align-items:center;">
+    <div class="admin-auto-grid" style="display:grid;grid-template-columns:160px minmax(280px,1fr);gap:12px 16px;align-items:center;">
       <div><strong>自動更新を有効化</strong></div>
-      <div style="text-align:left;">
+      <div class="admin-auto-toggle" style="text-align:left;">
         <input type="hidden" name="item_sync_enabled" value="0">
         <label style="display:inline-flex;align-items:center;gap:10px;"><input type="checkbox" name="item_sync_enabled" value="1" <?= $enabled ? 'checked' : '' ?>> <span>ON</span></label>
       </div>
@@ -119,7 +119,7 @@ require __DIR__ . '/includes/header.php';
     <h2 style="margin-top:20px;">複合キーワード（最大5）</h2>
     <p>単体キーワード（例: 学園）または複合（例: A,B）を入力できます。複合はAPIに「BはAが大好き」として渡します。</p>
 
-    <div style="display:grid;grid-template-columns:160px minmax(280px,1fr);gap:12px 16px;align-items:center;">
+    <div class="admin-auto-grid" style="display:grid;grid-template-columns:160px minmax(280px,1fr);gap:12px 16px;align-items:center;">
       <?php for ($i = 1; $i <= 5; $i++): ?>
         <div><strong>キーワード<?= e((string)$i) ?></strong></div>
         <div><input type="text" name="item_sync_compound_<?= e((string)$i) ?>" value="<?= e((string)($compoundLines[$i - 1] ?? '')) ?>" placeholder="A,B" style="width:100%;"></div>
@@ -129,7 +129,7 @@ require __DIR__ . '/includes/header.php';
     <h2 style="margin-top:20px;">拒否（禁止）キーワード（最大5）</h2>
     <p>タイトル部分一致で除外します（表示/投稿どちらにも適用）。</p>
 
-    <div style="display:grid;grid-template-columns:160px minmax(280px,1fr);gap:12px 16px;align-items:center;">
+    <div class="admin-auto-grid" style="display:grid;grid-template-columns:160px minmax(280px,1fr);gap:12px 16px;align-items:center;">
       <?php for ($i = 1; $i <= 5; $i++): ?>
         <div><strong>除外キーワード<?= e((string)$i) ?></strong></div>
         <div><input type="text" name="item_sync_exclude_<?= e((string)$i) ?>" value="<?= e((string)($excludeLines[$i - 1] ?? '')) ?>" style="width:100%;"></div>
@@ -138,7 +138,6 @@ require __DIR__ . '/includes/header.php';
 
     <div class="admin-actions" style="margin-top:20px;"><button type="submit">保存</button></div>
   </form>
-
 
   <h2 style="margin-top:24px;">自動更新状態</h2>
   <table class="admin-table">
