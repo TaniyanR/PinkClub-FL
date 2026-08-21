@@ -222,12 +222,14 @@
       if (!control) return;
 
       if (control.tagName.toLowerCase() === 'a') {
-        var replacement = document.createElement('button');
-        replacement.type = 'button';
-        replacement.className = control.className;
-        replacement.textContent = '元サイトで見る';
-        control.replaceWith(replacement);
-        control = replacement;
+        control.href = endpoint;
+        control.target = '_blank';
+        control.rel = 'noopener noreferrer sponsored';
+        control.classList.remove('is-disabled', 'sample-button--disabled');
+        control.classList.add('sample-button--enabled');
+        control.textContent = '元サイトで見る';
+        control.dataset.vrAffiliateBound = '1';
+        return;
       } else if (control.tagName.toLowerCase() === 'span') {
         var button = document.createElement('button');
         button.type = 'button';
