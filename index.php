@@ -62,7 +62,6 @@ function pick_random_items(array $rows, int $seed, int $limit = 15): array
     return array_slice($rows, 0, $limit);
 }
 
-
 function take_unique_items_for_home(array $items, array &$usedKeys, int $limit): array
 {
     $limit = max(1, $limit);
@@ -123,7 +122,6 @@ function normalize_movie_url(string $url): string
 
     return '';
 }
-
 
 function parse_index_image_urls(?string $value): array
 {
@@ -214,7 +212,6 @@ function query_all_safe(PDO $pdo, string $sql, array $params = []): array
     }
 }
 
-
 function home_column_exists(PDO $pdo, string $table, string $column): bool
 {
     static $cache = [];
@@ -281,15 +278,6 @@ function item_sample_state(array $item): array
                         break 2;
                     }
                 }
-            }
-        }
-    }
-
-    if (!$hasImageSample) {
-        foreach (parse_index_image_urls((string)($item['image_list'] ?? '')) as $image) {
-            if (trim((string)$image) !== '') {
-                $hasImageSample = true;
-                break;
             }
         }
     }
@@ -442,7 +430,6 @@ require __DIR__ . '/public/partials/header.php';
     <?php pcf_render_pagination($pg, $homeUrl); ?>
   </section>
 <?php endif; ?>
-
 
 <div id="sample-movie-modal" class="sample-movie-modal" aria-hidden="true">
   <div class="sample-movie-modal__overlay" data-movie-close="1"></div>
