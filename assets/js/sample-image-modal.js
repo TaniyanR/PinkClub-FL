@@ -90,12 +90,6 @@
     });
   }
 
-  function legacyUrl(trigger) {
-    var raw = trigger.getAttribute('onclick') || '';
-    var match = raw.match(/window\.open\(['"]([^'"]*sample_images\.php[^'"]*)['"]/i);
-    return match ? match[1].replace(/&amp;/g, '&') : '';
-  }
-
   function normalizeJsonUrl(url) {
     if (!url) return '';
     try {
@@ -191,9 +185,9 @@
   }
 
   document.addEventListener('click', function (event) {
-    var trigger = event.target.closest('.sample-image-trigger, button[onclick*="sample_images.php"]');
+    var trigger = event.target.closest('.sample-image-trigger');
     if (!trigger || trigger.disabled) return;
-    var url = trigger.dataset.sampleImagesUrl || legacyUrl(trigger);
+    var url = trigger.dataset.sampleImagesUrl || '';
     if (!url) return;
     event.preventDefault();
     event.stopImmediatePropagation();
