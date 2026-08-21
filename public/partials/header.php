@@ -20,7 +20,7 @@ $safeTextSetting = static function (string $key, string $default = ''): string {
         }
     } catch (Throwable $e) {
         if (function_exists('app_log_error')) {
-            app_log_error('header safe text setting fallback failed: ' . $key, $e);
+            app_log_error('footer safe text setting fallback failed: ' . $key, $e);
         }
     }
 
