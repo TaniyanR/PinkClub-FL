@@ -25,12 +25,8 @@ if (!is_array($item)) {
     exit;
 }
 
-$title = trim((string)($item['title'] ?? ''));
-if (preg_match('/(?:【|\[|［)?\s*VR\s*(?:】|\]|］)?/iu', $title) !== 1) {
-    http_response_code(404);
-    exit;
-}
-
+// The public card already decides when to expose the VR shortcut. Do not reject
+// a valid item here only because the API title itself does not contain the text "VR".
 $affiliateUrl = trim((string)($item['affiliate_url'] ?? ''));
 if ($affiliateUrl === '') {
     $raw = json_decode((string)($item['raw_json'] ?? ''), true);
