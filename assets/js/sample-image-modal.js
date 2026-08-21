@@ -190,26 +190,6 @@
     if (returnFocus) returnFocus.focus();
   }
 
-  function prepareSampleImageLinks(root) {
-    var scope = root && root.querySelectorAll ? root : document;
-    scope.querySelectorAll('.sample-image-trigger').forEach(function (trigger) {
-      var url = trigger.dataset.sampleImagesUrl || legacyUrl(trigger);
-      if (!url) return;
-      if (trigger.tagName.toLowerCase() === 'a') {
-        trigger.href = url;
-        return;
-      }
-      var link = document.createElement('a');
-      link.className = trigger.className;
-      link.href = url;
-      link.textContent = trigger.textContent || 'サンプル画像';
-      link.dataset.sampleImagesUrl = url;
-      link.dataset.sampleImagesTitle = trigger.dataset.sampleImagesTitle || '';
-      link.setAttribute('role', 'button');
-      trigger.replaceWith(link);
-    });
-  }
-
   function itemIdFromCard(card) {
     var itemLink = card.querySelector('a[href*="item.php"]');
     if (!itemLink) return '';
@@ -222,7 +202,7 @@
     }
   }
 
-  function prepareVrLinks(root) {
+  function prepareVrControls(root) {
     var scope = root && root.querySelectorAll ? root : document;
     var cards = [];
     if (scope.matches && scope.matches('.pcf-dm-card, .rail-card')) cards.push(scope);
@@ -240,37 +220,47 @@
         return text === '元サイトで見る' || text === 'サンプル動画';
       });
       if (!control) return;
+
       if (control.tagName.toLowerCase() === 'a') {
-        control.href = endpoint;
-        control.target = '_blank';
-        control.rel = 'noopener noreferrer sponsored';
-        control.textContent = '元サイトで見る';
-        control.classList.remove('is-disabled', 'sample-button--disabled');
-        return;
+        var replacement = document.createElement('button');
+        replacement.type = 'button';
+        replacement.className = control.className;
+        replacement.textContent = '元サイトで見る';
+        control.replaceWith(replacement);
+        control = replacement;
+      } else if (control.tagName.toLowerCase() === 'span') {
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = control.className;
+        button.textContent = '元サイトで見る';
+        control.replaceWith(button);
+        control = button;
       }
-      var link = document.createElement('a');
-      link.className = control.className.replace(/\bis-disabled\b/g, '').replace(/\bsample-button--disabled\b/g, '').trim();
-      link.href = endpoint;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer sponsored';
-      link.textContent = '元サイトで見る';
-      link.style.display = 'flex';
-      link.style.alignItems = 'center';
-      link.style.justifyContent = 'center';
-      link.style.textDecoration = 'none';
-      control.replaceWith(link);
+
+      control.classList.remove('is-disabled', 'sample-button--disabled');
+      control.classList.add('sample-button--enabled');
+      control.textContent = '元サイトで見る';
+      control.dataset.vrAffiliateUrl = endpoint;
+      control.disabled = false;
+      if (control.dataset.vrAffiliateBound === '1') return;
+      control.dataset.vrAffiliateBound = '1';
+      control.addEventListener('click', function () {
+        var url = control.dataset.vrAffiliateUrl || '';
+        if (!url) return;
+        window.open(url, '_blank', 'noopener,noreferrer');
+      });
     });
   }
 
-  prepareSampleImageLinks(document);
-  prepareVrLinks(document);
+  prepareVrControls(document);
 
   document.addEventListener('click', function (event) {
-    var trigger = event.target.closest('.sample-image-trigger, a[href*="sample_images.php"], button[onclick*="sample_images.php"]');
+    var trigger = event.target.closest('.sample-image-trigger, button[onclick*="sample_images.php"]');
     if (!trigger || trigger.disabled) return;
-    var url = trigger.dataset.sampleImagesUrl || trigger.getAttribute('href') || legacyUrl(trigger);
+    var url = trigger.dataset.sampleImagesUrl || legacyUrl(trigger);
     if (!url) return;
     event.preventDefault();
+    event.stopImmediatePropagation();
     openModal(trigger, url);
   }, true);
 
@@ -286,8 +276,7 @@
       mutations.forEach(function (mutation) {
         mutation.addedNodes.forEach(function (node) {
           if (!(node instanceof Element)) return;
-          prepareSampleImageLinks(node);
-          prepareVrLinks(node);
+          prepareVrControls(node);
         });
       });
     });
