@@ -34,32 +34,37 @@ function vr_affiliate_decode_raw(mixed $value): array
     return [];
 }
 
-function vr_affiliate_find_url(mixed $value): string
+function vr_affiliate_normalize_url(mixed $value): string
 {
-    if (is_string($value)) {
-        $candidate = html_entity_decode(trim($value), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        if (str_starts_with($candidate, '//')) {
-            $candidate = 'https:' . $candidate;
-        }
-        return filter_var($candidate, FILTER_VALIDATE_URL) !== false ? $candidate : '';
-    }
-
-    if (!is_array($value)) {
+    if (!is_string($value)) {
         return '';
     }
 
+    $candidate = html_entity_decode(trim($value), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    if (str_starts_with($candidate, '//')) {
+        $candidate = 'https:' . $candidate;
+    }
+
+    return filter_var($candidate, FILTER_VALIDATE_URL) !== false ? $candidate : '';
+}
+
+function vr_affiliate_find_raw_url(array $value): string
+{
     foreach (['affiliateURL', 'affiliate_url'] as $key) {
         if (!array_key_exists($key, $value)) {
             continue;
         }
-        $candidate = vr_affiliate_find_url($value[$key]);
+        $candidate = vr_affiliate_normalize_url($value[$key]);
         if ($candidate !== '') {
             return $candidate;
         }
     }
 
     foreach ($value as $child) {
-        $candidate = vr_affiliate_find_url($child);
+        if (!is_array($child)) {
+            continue;
+        }
+        $candidate = vr_affiliate_find_raw_url($child);
         if ($candidate !== '') {
             return $candidate;
         }
@@ -108,11 +113,11 @@ if (!is_array($item)) {
     exit;
 }
 
-$affiliateUrl = vr_affiliate_find_url((string)($item['affiliate_url'] ?? ''));
+$affiliateUrl = vr_affiliate_normalize_url((string)($item['affiliate_url'] ?? ''));
 if ($affiliateUrl === '') {
     $raw = vr_affiliate_decode_raw((string)($item['raw_json'] ?? ''));
     if ($raw !== []) {
-        $affiliateUrl = vr_affiliate_find_url($raw);
+        $affiliateUrl = vr_affiliate_find_raw_url($raw);
     }
 }
 
