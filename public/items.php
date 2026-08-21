@@ -322,7 +322,7 @@ function pick_full_package_image(array $item): string
 
 function render_item_card(array $item, int $width = 180, ?array $taxonomy = null, bool $preferFullPackageImage = false, bool $lazyLoad = true): void
 {
-    $itemUrl = app_url('public/item.php?id=' . (int)$item['id']);
+    $itemUrl = public_url('item.php?id=' . (int)$item['id']);
     $title = (string)($item['title'] ?? '');
     $sample = item_sample_state($item);
     $movieClass = $sample['movie_url'] !== '' ? 'sample-button sample-button--enabled' : 'sample-button sample-button--disabled';
@@ -356,7 +356,7 @@ function render_item_card(array $item, int $width = 180, ?array $taxonomy = null
         <?php $releaseDateRaw = trim((string)($item['release_date'] ?? '')); ?>
         <span style="display:block;width:100%;padding:12px 10px;text-align:center;color:#000;background:transparent;border:1px solid #000;border-radius:4px;font-size:14px;font-weight:700;box-sizing:border-box;"><?= $releaseDateRaw !== '' ? '発売日：' . e(format_date($releaseDateRaw)) : '発売日' ?></span>
         <button type="button" class="<?= e($movieClass) ?> sample-movie-trigger" <?= $sample['movie_url'] === '' ? 'disabled' : '' ?> data-movie-url="<?= e((string)$sample['movie_url']) ?>" data-movie-title="<?= e($title) ?>">サンプル動画</button>
-        <button type="button" class="<?= e($imageClass) ?>" <?= !$sample['has_images'] ? 'disabled' : '' ?> onclick="<?= $sample['has_images'] ? "window.open('" . e($sampleImagesUrl) . "','_blank','noopener,noreferrer,width=760,height=540');" : 'return false;' ?>">サンプル画像</button>
+        <button type="button" class="<?= e($imageClass) ?> sample-image-trigger" <?= !$sample['has_images'] ? 'disabled' : '' ?> data-sample-images-url="<?= e($sampleImagesUrl) ?>" data-sample-images-title="<?= e($title) ?>">サンプル画像</button>
       </div>
     </article>
     <?php
