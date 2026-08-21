@@ -1,0 +1,47 @@
+name: Temporary 1445-1452 audit
+
+on:
+  push:
+    branches:
+      - agent/apply-fanza-1445-1452
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: PHP syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          find . -type f -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l
+      - name: JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do node --check "$file"; done < <(find . -type f -name '*.js' -not -path './vendor/*' -print0)
+      - name: JSON syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          for path in Path('.').rglob('*.json'):
+              if 'vendor' in path.parts:
+                  continue
+              with path.open('r', encoding='utf-8') as fh:
+                  json.load(fh)
+              print('OK', path)
+          PY
+      - name: Git whitespace
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git diff --check origin/main...HEAD
