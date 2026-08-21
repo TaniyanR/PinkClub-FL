@@ -25,6 +25,20 @@ function sample_images_parse_list(?string $value): array
     return array_values(array_filter(array_map('trim', $parts), static fn(string $v): bool => $v !== ''));
 }
 
+function sample_images_decode_raw(mixed $value): array
+{
+    if (!is_string($value) || trim($value) === '') {
+        return [];
+    }
+
+    $decoded = json_decode($value, true);
+    if (is_string($decoded)) {
+        $decoded = json_decode($decoded, true);
+    }
+
+    return is_array($decoded) ? $decoded : [];
+}
+
 function sample_images_is_self_hosted_fanza_image_url(string $url): bool
 {
     $value = trim($url);
@@ -55,7 +69,14 @@ function sample_images_collect_from_value(mixed $value, array &$images): void
     if (is_string($value)) {
         foreach (sample_images_parse_list($value) as $candidate) {
             $url = trim((string)$candidate);
-            if ($url !== '' && !sample_images_is_self_hosted_fanza_image_url($url)) {
+            if (str_starts_with($url, '//')) {
+                $url = 'https:' . $url;
+            }
+            if ($url === '' || sample_images_is_self_hosted_fanza_image_url($url)) {
+                continue;
+            }
+            $scheme = strtolower((string)parse_url($url, PHP_URL_SCHEME));
+            if (in_array($scheme, ['http', 'https'], true)) {
                 $images[] = $url;
             }
         }
@@ -71,21 +92,28 @@ function sample_images_collect_from_value(mixed $value, array &$images): void
     }
 }
 
+$itemId = max(0, (int)get('item_id', 0));
 $contentId = trim((string)get('content_id', ''));
 $wantsJson = strtolower(trim((string)get('format', ''))) === 'json'
     || str_contains(strtolower((string)($_SERVER['HTTP_ACCEPT'] ?? '')), 'application/json');
-if ($contentId === '') {
+
+if ($itemId <= 0 && $contentId === '') {
     http_response_code(404);
     if ($wantsJson) {
         header('Content-Type: application/json; charset=UTF-8');
         echo json_encode(['title' => '', 'images' => [], 'error' => 'not_found'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
-    exit('content_id が指定されていません。');
+    exit('商品が指定されていません。');
 }
 
-$stmt = db()->prepare('SELECT content_id, title, raw_json FROM items WHERE content_id = ? LIMIT 1');
-$stmt->execute([$contentId]);
+if ($itemId > 0) {
+    $stmt = db()->prepare('SELECT id, content_id, title, raw_json FROM items WHERE id = ? LIMIT 1');
+    $stmt->execute([$itemId]);
+} else {
+    $stmt = db()->prepare('SELECT id, content_id, title, raw_json FROM items WHERE content_id = ? ORDER BY id DESC LIMIT 1');
+    $stmt->execute([$contentId]);
+}
 $item = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$item) {
     http_response_code(404);
@@ -97,9 +125,9 @@ if (!$item) {
     exit('指定の商品が見つかりません。');
 }
 
-$decoded = json_decode((string)($item['raw_json'] ?? ''), true);
+$decoded = sample_images_decode_raw((string)($item['raw_json'] ?? ''));
 $images = [];
-if (is_array($decoded) && isset($decoded['sampleImageURL'])) {
+if (isset($decoded['sampleImageURL'])) {
     if (is_array($decoded['sampleImageURL'])) {
         foreach (['sample_l', 'sample_s'] as $sizeKey) {
             $sampleImages = [];
@@ -118,6 +146,7 @@ $images = array_values(array_unique($images));
 if ($wantsJson) {
     header('Content-Type: application/json; charset=UTF-8');
     header('X-Robots-Tag: noindex, nofollow');
+    header('Cache-Control: private, no-store, max-age=0');
     echo json_encode([
         'title' => (string)$item['title'],
         'images' => $images,
