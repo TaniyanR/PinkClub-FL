@@ -40,14 +40,28 @@ if (!function_exists('should_show_ad')) {
 if (!function_exists('rss_widget_direct_items')) {
     function rss_widget_direct_items(int $limit, bool $requireImage = false): array
     {
-        // Compatibility wrapper only. Public rendering must never perform
-        // synchronous external RSS requests; it reads cron-saved DB rows.
-        if ($limit <= 0 || !function_exists('rss_pick_display_items')) {
+        // Compatibility name retained for callers. This is deliberately DB-only:
+        // public rendering must never fetch external RSS or create/alter tables.
+        if ($limit <= 0 || !function_exists('db')) {
             return [];
         }
 
+        $limit = max(1, min(250, $limit));
+        $scanLimit = max($limit, min(2000, $limit * 10));
         try {
-            return rss_pick_display_items($limit, $requireImage, 14);
+            $sql = 'SELECT ri.source_id, rs.name AS source_name, ri.title, ri.url AS link, ri.guid, ri.published_at, ri.image_url '
+                . 'FROM rss_items ri INNER JOIN rss_sources rs ON rs.id = ri.source_id '
+                . 'WHERE rs.is_enabled = 1 AND rs.source_type = "partner_link" '
+                . 'AND ri.published_at >= DATE_SUB(NOW(), INTERVAL 14 DAY) ';
+            if ($requireImage) {
+                $sql .= 'AND ri.image_url IS NOT NULL AND ri.image_url <> "" ';
+            }
+            $sql .= 'ORDER BY ri.published_at DESC, ri.id DESC LIMIT :scan_limit';
+            $stmt = db()->prepare($sql);
+            $stmt->bindValue(':scan_limit', $scanLimit, PDO::PARAM_INT);
+            $stmt->execute();
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            return is_array($rows) ? array_slice($rows, 0, $limit) : [];
         } catch (Throwable) {
             return [];
         }
@@ -107,15 +121,12 @@ if (!function_exists('render_shared_mobile_rss_widget')) {
 if (!function_exists('render_shared_content_ad_row')) {
     function render_shared_content_ad_row(string $position_key, string $page_type): void
     {
-        // Keep this helper limited to bottom placement to avoid top-of-content duplication.
         if ($position_key !== 'content_bottom') {
             return;
         }
 
         $prevUsedKeys = $GLOBALS['pcf_rss_widget_used_keys'] ?? null;
         $prevMaxItems = $GLOBALS['pcf_rss_widget_max_items'] ?? null;
-
-        // Reset widget tracking so this row can render independently from sidebar/top widgets.
         $GLOBALS['pcf_rss_widget_used_keys'] = [];
         $GLOBALS['pcf_rss_widget_max_items'] = 50;
 
@@ -123,9 +134,7 @@ if (!function_exists('render_shared_content_ad_row')) {
         include __DIR__ . '/rss_text_widget.php';
         $leftRssHtml = trim((string)ob_get_clean());
 
-        // Render right column independently so both columns can fill to max count.
         $GLOBALS['pcf_rss_widget_used_keys'] = [];
-
         ob_start();
         include __DIR__ . '/rss_text_widget.php';
         $rightRssHtml = trim((string)ob_get_clean());
@@ -135,7 +144,6 @@ if (!function_exists('render_shared_content_ad_row')) {
         } else {
             $GLOBALS['pcf_rss_widget_used_keys'] = $prevUsedKeys;
         }
-
         if ($prevMaxItems === null) {
             unset($GLOBALS['pcf_rss_widget_max_items']);
         } else {
