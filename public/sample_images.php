@@ -127,7 +127,7 @@ if ($wantsJson) {
     .sample-scroll { display: flex; flex-wrap: nowrap; gap: 10px; overflow-x: auto; overflow-y: hidden; padding-bottom: 6px; height: 100%; min-height: 0; scroll-behavior: smooth; }
     .sample-scroll::-webkit-scrollbar { height: 10px; }
     .sample-scroll::-webkit-scrollbar-thumb { background: #b9bdc5; border-radius: 8px; }
-    .sample-frame { width: min(840px, calc(100vw - 54px)); height: 100%; flex: 0 0 min(840px, calc(100vw - 54px)); max-width: none; background: #fff; border: 1px solid #dcdcde; margin: 0; display: flex; align-items: center; justify-content: center; box-sizing:border-box; }
+    .sample-frame { width: min(840px, calc(100vw - 54px)); height: 100%; flex: 0 0 min(840px, calc(100vw - 54px)); max-width: none; background: #fff; border: 1px solid #dcdcde; margin: 0; display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
     .sample-frame img { width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
     .sample-arrow { position: absolute; top: 50%; z-index: 2; width: 48px; height: 48px; margin-top: -24px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.92); color: #222; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28); font-size: 30px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: opacity .2s ease, transform .2s ease; }
     .sample-prev { left: 14px; }
