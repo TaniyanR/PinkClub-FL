@@ -5,6 +5,87 @@ declare(strict_types=1);
 require_once __DIR__ . '/_bootstrap.php';
 
 header('X-Robots-Tag: noindex, nofollow', true);
+header('Cache-Control: private, no-store, max-age=0');
+
+function vr_affiliate_decode_raw(mixed $value): array
+{
+    if (is_array($value)) {
+        return $value;
+    }
+    if (!is_string($value)) {
+        return [];
+    }
+
+    $current = trim($value);
+    for ($i = 0; $i < 2; $i++) {
+        if ($current === '') {
+            return [];
+        }
+        $decoded = json_decode($current, true);
+        if (is_array($decoded)) {
+            return $decoded;
+        }
+        if (!is_string($decoded)) {
+            return [];
+        }
+        $current = trim($decoded);
+    }
+
+    return [];
+}
+
+function vr_affiliate_find_url(mixed $value): string
+{
+    if (is_string($value)) {
+        $candidate = html_entity_decode(trim($value), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        if (str_starts_with($candidate, '//')) {
+            $candidate = 'https:' . $candidate;
+        }
+        return filter_var($candidate, FILTER_VALIDATE_URL) !== false ? $candidate : '';
+    }
+
+    if (!is_array($value)) {
+        return '';
+    }
+
+    foreach (['affiliateURL', 'affiliate_url'] as $key) {
+        if (!array_key_exists($key, $value)) {
+            continue;
+        }
+        $candidate = vr_affiliate_find_url($value[$key]);
+        if ($candidate !== '') {
+            return $candidate;
+        }
+    }
+
+    foreach ($value as $child) {
+        $candidate = vr_affiliate_find_url($child);
+        if ($candidate !== '') {
+            return $candidate;
+        }
+    }
+
+    return '';
+}
+
+function vr_affiliate_allowed_host(string $url): bool
+{
+    $host = strtolower((string)parse_url($url, PHP_URL_HOST));
+    if ($host === '') {
+        return false;
+    }
+
+    return $host === 'dmm.co.jp'
+        || $host === 'www.dmm.co.jp'
+        || $host === 'video.dmm.co.jp'
+        || $host === 'dmm.com'
+        || $host === 'www.dmm.com'
+        || $host === 'fanza.co.jp'
+        || $host === 'www.fanza.co.jp'
+        || str_ends_with($host, '.dmm.co.jp')
+        || str_ends_with($host, '.dmm.com')
+        || str_ends_with($host, '.fanza.co.jp');
+}
 
 $itemId = max(0, (int)($_GET['id'] ?? 0));
 if ($itemId <= 0) {
@@ -13,11 +94,13 @@ if ($itemId <= 0) {
 }
 
 try {
-    $stmt = db()->prepare('SELECT title, affiliate_url, raw_json FROM items WHERE id = :id LIMIT 1');
+    $stmt = db()->prepare('SELECT affiliate_url, raw_json FROM items WHERE id = :id LIMIT 1');
     $stmt->execute([':id' => $itemId]);
     $item = $stmt->fetch(PDO::FETCH_ASSOC);
-} catch (Throwable) {
-    $item = false;
+} catch (Throwable $e) {
+    error_log('vr_affiliate.php query failed: ' . $e->getMessage());
+    http_response_code(500);
+    exit;
 }
 
 if (!is_array($item)) {
@@ -25,49 +108,18 @@ if (!is_array($item)) {
     exit;
 }
 
-// The public card already decides when to expose the VR shortcut. Do not reject
-// a valid item here only because the API title itself does not contain the text "VR".
-$affiliateUrl = trim((string)($item['affiliate_url'] ?? ''));
+$affiliateUrl = vr_affiliate_find_url((string)($item['affiliate_url'] ?? ''));
 if ($affiliateUrl === '') {
-    $raw = json_decode((string)($item['raw_json'] ?? ''), true);
-    if (is_array($raw)) {
-        foreach (['affiliateURL', 'affiliate_url'] as $key) {
-            $candidate = trim((string)($raw[$key] ?? ''));
-            if ($candidate !== '') {
-                $affiliateUrl = $candidate;
-                break;
-            }
-        }
+    $raw = vr_affiliate_decode_raw((string)($item['raw_json'] ?? ''));
+    if ($raw !== []) {
+        $affiliateUrl = vr_affiliate_find_url($raw);
     }
 }
 
-$affiliateUrl = html_entity_decode($affiliateUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-if (str_starts_with($affiliateUrl, '//')) {
-    $affiliateUrl = 'https:' . $affiliateUrl;
-}
-
-if ($affiliateUrl === '' || filter_var($affiliateUrl, FILTER_VALIDATE_URL) === false) {
+if ($affiliateUrl === '' || !vr_affiliate_allowed_host($affiliateUrl)) {
     http_response_code(404);
     exit;
 }
 
-$host = strtolower((string)parse_url($affiliateUrl, PHP_URL_HOST));
-$allowed = $host === 'dmm.co.jp'
-    || $host === 'www.dmm.co.jp'
-    || $host === 'video.dmm.co.jp'
-    || $host === 'dmm.com'
-    || $host === 'www.dmm.com'
-    || $host === 'fanza.co.jp'
-    || $host === 'www.fanza.co.jp'
-    || str_ends_with($host, '.dmm.co.jp')
-    || str_ends_with($host, '.dmm.com')
-    || str_ends_with($host, '.fanza.co.jp');
-
-if (!$allowed) {
-    http_response_code(404);
-    exit;
-}
-
-header('Cache-Control: private, no-store');
 header('Location: ' . $affiliateUrl, true, 302);
 exit;
