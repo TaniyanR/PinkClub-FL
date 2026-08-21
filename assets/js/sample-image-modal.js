@@ -108,7 +108,13 @@
   }
 
   function applyImages(payload, trigger) {
-    images = Array.isArray(payload.images) ? payload.images.filter(function (imageUrl) { return /^https?:\/\//i.test(imageUrl); }) : [];
+    images = Array.isArray(payload.images) ? payload.images.map(function (imageUrl) {
+      try {
+        return new URL(String(imageUrl || ''), window.location.href).toString();
+      } catch (_) {
+        return '';
+      }
+    }).filter(function (imageUrl) { return /^https?:\/\//i.test(imageUrl); }) : [];
     titleNode.textContent = payload.title || trigger.dataset.sampleImagesTitle || 'サンプル画像';
     if (!images.length) return false;
     renderThumbs();
@@ -160,17 +166,17 @@
       .then(function (payload) {
         if (!applyImages(payload, trigger)) {
           return loadLegacyHtml(url, trigger).then(function (loaded) {
-            if (!loaded) statusNode.textContent = '表示できるサンプル画像がありません。';
+            if (!loaded) window.location.assign(url);
           });
         }
       })
       .catch(function () {
         loadLegacyHtml(url, trigger)
           .then(function (loaded) {
-            if (!loaded) statusNode.textContent = '表示できるサンプル画像がありません。';
+            if (!loaded) window.location.assign(url);
           })
           .catch(function () {
-            statusNode.textContent = 'サンプル画像を読み込めませんでした。時間をおいてもう一度お試しください。';
+            window.location.assign(url);
           });
       });
   }
@@ -183,6 +189,70 @@
     mainImage.removeAttribute('src');
     if (returnFocus) returnFocus.focus();
   }
+
+  function itemIdFromCard(card) {
+    var itemLink = card.querySelector('a[href*="item.php"]');
+    if (!itemLink) return '';
+    try {
+      var url = new URL(itemLink.href, window.location.href);
+      var id = url.searchParams.get('id') || '';
+      return /^\d+$/.test(id) ? id : '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function prepareVrControls(root) {
+    var scope = root && root.querySelectorAll ? root : document;
+    var cards = [];
+    if (scope.matches && scope.matches('.pcf-dm-card, .rail-card')) cards.push(scope);
+    scope.querySelectorAll('.pcf-dm-card, .rail-card').forEach(function (card) { cards.push(card); });
+    cards.forEach(function (card) {
+      var titleNode = card.querySelector('.pcf-dm-card__title, .rail-card__title, h2, h3, h4');
+      var title = titleNode ? (titleNode.textContent || '').trim() : '';
+      if (!/(?:【|\[|［)?\s*VR\s*(?:】|\]|］)?/i.test(title)) return;
+      var itemId = itemIdFromCard(card);
+      if (!itemId) return;
+      var endpoint = new URL('vr_affiliate.php?id=' + encodeURIComponent(itemId), window.location.href).toString();
+      var controls = card.querySelectorAll('a, button, span');
+      var control = Array.prototype.find.call(controls, function (node) {
+        var text = (node.textContent || '').trim();
+        return text === '元サイトで見る' || text === 'サンプル動画';
+      });
+      if (!control) return;
+
+      if (control.tagName.toLowerCase() === 'a') {
+        var replacement = document.createElement('button');
+        replacement.type = 'button';
+        replacement.className = control.className;
+        replacement.textContent = '元サイトで見る';
+        control.replaceWith(replacement);
+        control = replacement;
+      } else if (control.tagName.toLowerCase() === 'span') {
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = control.className;
+        button.textContent = '元サイトで見る';
+        control.replaceWith(button);
+        control = button;
+      }
+
+      control.classList.remove('is-disabled', 'sample-button--disabled');
+      control.classList.add('sample-button--enabled');
+      control.textContent = '元サイトで見る';
+      control.dataset.vrAffiliateUrl = endpoint;
+      control.disabled = false;
+      if (control.dataset.vrAffiliateBound === '1') return;
+      control.dataset.vrAffiliateBound = '1';
+      control.addEventListener('click', function () {
+        var url = control.dataset.vrAffiliateUrl || '';
+        if (!url) return;
+        window.open(url, '_blank', 'noopener,noreferrer');
+      });
+    });
+  }
+
+  prepareVrControls(document);
 
   document.addEventListener('click', function (event) {
     var trigger = event.target.closest('.sample-image-trigger, button[onclick*="sample_images.php"]');
@@ -200,4 +270,16 @@
     if (event.key === 'ArrowLeft') showImage(activeIndex - 1);
     if (event.key === 'ArrowRight') showImage(activeIndex + 1);
   });
+
+  if ('MutationObserver' in window) {
+    var observer = new MutationObserver(function (mutations) {
+      mutations.forEach(function (mutation) {
+        mutation.addedNodes.forEach(function (node) {
+          if (!(node instanceof Element)) return;
+          prepareVrControls(node);
+        });
+      });
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
 }());
