@@ -143,7 +143,11 @@ try {
 
     header('Location: ' . $backUrl . '&receipt=' . rawurlencode($receipt));
     exit;
-} catch (Throwable $e) {
+} catch (RuntimeException $e) {
     header('Location: ' . $backUrl . '&deletion_error=' . rawurlencode(mb_substr($e->getMessage(), 0, 200)));
+    exit;
+} catch (Throwable $e) {
+    error_log('deletion request failed: ' . $e->getMessage());
+    header('Location: ' . $backUrl . '&deletion_error=' . rawurlencode('処理中にエラーが発生しました。時間をおいて再度お試しください。'));
     exit;
 }
