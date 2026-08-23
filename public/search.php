@@ -383,6 +383,7 @@ function search_fetch_items(string $query, int $limit, int $offset, string $exac
         }
         $whereSql = '(' . implode(' OR ', $termWhere) . ')';
     }
+    $whereSql = '(' . $whereSql . ') AND ' . items_front_release_where();
     $orderSqlCandidates = [
         'release_date DESC, id DESC',
         'date_published DESC, id DESC',
