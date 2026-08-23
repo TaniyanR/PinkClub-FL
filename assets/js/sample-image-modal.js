@@ -184,15 +184,6 @@
     if (returnFocus) returnFocus.focus();
   }
 
-  window.PcfSampleImageModal = window.PcfSampleImageModal || {};
-  window.PcfSampleImageModal.open = function (trigger) {
-    if (!trigger || trigger.disabled) return false;
-    var url = trigger.dataset.sampleImagesUrl || '';
-    if (!url) return false;
-    openModal(trigger, url);
-    return false;
-  };
-
   document.addEventListener('click', function (event) {
     var trigger = event.target.closest('.sample-image-trigger');
     if (!trigger || trigger.disabled) return;
@@ -200,7 +191,7 @@
     if (!url) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    window.PcfSampleImageModal.open(trigger);
+    openModal(trigger, url);
   }, true);
 
   document.addEventListener('keydown', function (event) {

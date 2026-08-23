@@ -305,9 +305,5 @@ $copyrightYears = $copyrightStartYear >= $currentYear
 }());
 </script>
 <?php endif; ?>
-<script>
-document.documentElement.setAttribute('data-sample-image-modal-css', <?= json_encode(asset_url('css/sample-image-modal.css'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>);
-</script>
-<script src="<?= e(asset_url('js/sample-image-modal.js')) ?>"></script>
 </body>
 </html>
