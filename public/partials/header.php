@@ -115,7 +115,9 @@ $relNextHref = isset($relNext) && is_string($relNext) && $relNext !== '' ? $relN
   <?php endif; ?>
   <link rel="stylesheet" href="<?= e(asset_url('css/style.css')) ?>">
   <link rel="stylesheet" href="<?= e(asset_url('css/public-ui.css')) ?>">
+  <link rel="stylesheet" href="<?= e(asset_url('css/sample-image-modal.css')) ?>">
   <script src="<?= e(asset_url('js/item-detail-fixes.js')) ?>" defer></script>
+  <script src="<?= e(asset_url('js/sample-image-modal.js')) ?>" defer></script>
   <script>
   document.addEventListener('DOMContentLoaded', () => {
     const vrPattern = /(?:【|\[|［)?\s*VR\s*(?:】|\]|］)?/i;
