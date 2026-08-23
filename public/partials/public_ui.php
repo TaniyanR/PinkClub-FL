@@ -636,7 +636,7 @@ if (!function_exists('pcf_render_item_card')) {
             echo '<span class="pcf-dm-card__button is-disabled">サンプル動画</span>';
         }
         if ($hasSampleImages && $contentId !== '') {
-            echo '<a class="pcf-dm-card__button sample-image-trigger" href="' . e($sampleImagesUrl) . '" target="_blank" rel="noopener noreferrer" data-sample-images-url="' . e($sampleImagesUrl) . '" data-sample-images-title="' . e($title) . '">サンプル画像</a>';
+            echo '<button type="button" class="pcf-dm-card__button sample-image-trigger" data-sample-images-url="' . e($sampleImagesUrl) . '" data-sample-images-title="' . e($title) . '" onclick="return window.PcfSampleImageModal.open(this);">サンプル画像</button>';
         } else {
             echo '<span class="pcf-dm-card__button is-disabled">サンプル画像</span>';
         }
