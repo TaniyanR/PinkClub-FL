@@ -1,1 +1,10 @@
-<?php require __DIR__ . '/robots.php';
+User-agent: *
+Disallow: /admin/
+Disallow: /public/forgot_password.php
+Disallow: /public/reset_password.php
+Disallow: /public/setup_check.php
+Disallow: /search.php
+Disallow: /public/search.php
+Disallow: /out.php?to=
+Disallow: /public/out.php?to=
+Crawl-delay: 10
