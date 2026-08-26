@@ -20,8 +20,13 @@ function setup_guard_mark_installed(): bool
         return false;
     }
 
+    try {
+        $suffix = bin2hex(random_bytes(4));
+    } catch (Throwable) {
+        $suffix = uniqid('', true);
+    }
     $payload = "PinkClub installed\n" . date('c') . "\n";
-    $tmp = $path . '.tmp-' . bin2hex(random_bytes(4));
+    $tmp = $path . '.tmp-' . $suffix;
     if (@file_put_contents($tmp, $payload, LOCK_EX) === false) {
         error_log('[setup] unable to write installed-state marker');
         return false;
@@ -93,13 +98,27 @@ function setup_guard_enforce_for_setup_page(): void
         header('X-Robots-Tag: noindex, nofollow', true);
     }
 
-    if (!setup_guard_is_known_installed()) {
-        return;
+    if (setup_guard_is_known_installed()) {
+        if (function_exists('app_redirect')) {
+            app_redirect(LOGIN_PATH);
+        }
+        header('Location: ' . LOGIN_PATH, true, 302);
+        exit;
     }
 
-    if (function_exists('app_redirect')) {
-        app_redirect(LOGIN_PATH);
-    }
-    header('Location: ' . LOGIN_PATH, true, 302);
-    exit;
+    // If this request performs the first successful installation, persist the
+    // completed state even when setup_check.php exits via a redirect.
+    register_shutdown_function(static function (): void {
+        if (setup_guard_marker_exists()) {
+            return;
+        }
+        try {
+            $status = installer_status();
+            if (($status['completed'] ?? false) === true) {
+                setup_guard_mark_installed();
+            }
+        } catch (Throwable) {
+            // An unsuccessful first install remains eligible for setup recovery.
+        }
+    });
 }
