@@ -106,5 +106,6 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/csrf.php';
 require_once __DIR__ . '/installer.php';
+require_once __DIR__ . '/setup_guard.php';
 require_once __DIR__ . '/paginator.php';
 require_once __DIR__ . '/app.php';
