@@ -308,12 +308,19 @@ function pick_full_package_image(array $item): string
 
 function render_item_card(array $item, int $width = 180, ?array $taxonomy = null, bool $preferFullPackageImage = false, bool $lazyLoad = true): void
 {
-    $itemUrl = public_url('item.php?id=' . (int)$item['id']);
+    $itemId = (int)($item['id'] ?? 0);
+    $itemUrl = public_url('item.php?id=' . $itemId);
     $title = (string)($item['title'] ?? '');
+    $raw = decode_item_raw($item);
     $sample = item_sample_state($item);
     $movieClass = $sample['movie_url'] !== '' ? 'sample-button sample-button--enabled' : 'sample-button sample-button--disabled';
     $imageClass = $sample['has_images'] ? 'sample-button sample-button--enabled' : 'sample-button sample-button--disabled';
     $sampleImagesUrl = public_url('sample_images.php?content_id=' . rawurlencode((string)($item['content_id'] ?? '')));
+    $affiliateUrl = trim((string)($item['affiliate_url'] ?? ''));
+    if ($affiliateUrl === '') {
+        $affiliateUrl = trim((string)($raw['affiliateURL'] ?? $raw['affiliate_url'] ?? ''));
+    }
+    $isVrItem = preg_match('/(?:【|\[|［)?\s*VR\s*(?:】|\]|］)?/i', $title) === 1;
     $thumbUrl = trim((string)($item['image_small'] ?? ''));
     if ($preferFullPackageImage) {
         $fullPackageImage = pick_full_package_image($item);
@@ -335,7 +342,11 @@ function render_item_card(array $item, int $width = 180, ?array $taxonomy = null
       <div class="sample-buttons">
         <?php $releaseDateRaw = trim((string)($item['release_date'] ?? '')); ?>
         <span style="display:block;width:100%;padding:12px 10px;text-align:center;color:#000;background:transparent;border:1px solid #000;border-radius:4px;font-size:14px;font-weight:700;box-sizing:border-box;"><?= $releaseDateRaw !== '' ? '発売日：' . e(format_date($releaseDateRaw)) : '発売日' ?></span>
-        <button type="button" class="<?= e($movieClass) ?> sample-movie-trigger" <?= $sample['movie_url'] === '' ? 'disabled' : '' ?> data-movie-url="<?= e((string)$sample['movie_url']) ?>" data-movie-title="<?= e($title) ?>">サンプル動画</button>
+        <?php if ($isVrItem && $itemId > 0 && $affiliateUrl !== ''): ?>
+          <a class="sample-button sample-button--enabled" href="<?= e(public_url('vr_affiliate.php?id=' . $itemId)) ?>" target="_blank" rel="noopener noreferrer sponsored">元サイトで見る</a>
+        <?php else: ?>
+          <button type="button" class="<?= e($movieClass) ?> sample-movie-trigger" <?= $sample['movie_url'] === '' ? 'disabled' : '' ?> data-movie-url="<?= e((string)$sample['movie_url']) ?>" data-movie-title="<?= e($title) ?>">サンプル動画</button>
+        <?php endif; ?>
         <button type="button" class="<?= e($imageClass) ?> sample-image-trigger" <?= !$sample['has_images'] ? 'disabled' : '' ?> data-sample-images-url="<?= e($sampleImagesUrl) ?>" data-sample-images-title="<?= e($title) ?>">サンプル画像</button>
       </div>
     </article>

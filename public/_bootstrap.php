@@ -10,6 +10,10 @@ require_once __DIR__ . '/../lib/public_page_cache.php';
 pcf_crawler_guard_check();
 
 $publicScriptName = basename((string)($_SERVER['SCRIPT_NAME'] ?? ''));
+if ($publicScriptName === 'setup_check.php' && function_exists('setup_guard_enforce_for_setup_page')) {
+    setup_guard_enforce_for_setup_page();
+}
+
 $longCachePublicPages = [
     'index.php',
     'items.php',

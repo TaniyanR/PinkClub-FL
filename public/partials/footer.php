@@ -277,16 +277,23 @@ $copyrightYears = $copyrightStartYear >= $currentYear
   window.__pcfSendBeacon = send;
   if (window.__pcfAnalyticsSent === true) return;
   window.__pcfAnalyticsSent = true;
-  var data = new FormData();
-  data.append('path', window.location.pathname + window.location.search);
-  data.append('referrer', document.referrer || '');
-  try {
-    var params = new URLSearchParams(window.location.search);
-    data.append('ref', params.get('ref') || '');
-  } catch (e) {
-    data.append('ref', '');
-  }
-  send('<?= e(public_url('analytics.php')) ?>', data);
+  if (navigator.webdriver === true) return;
+  var path = window.location.pathname + window.location.search;
+  var token = <?= json_encode(analytics_beacon_token((string)($_SERVER['REQUEST_URI'] ?? '/')), JSON_UNESCAPED_SLASHES) ?>;
+  window.setTimeout(function () {
+    if (document.visibilityState !== 'visible') return;
+    var data = new FormData();
+    data.append('path', path);
+    data.append('token', token);
+    data.append('referrer', document.referrer || '');
+    try {
+      var params = new URLSearchParams(window.location.search);
+      data.append('ref', params.get('ref') || '');
+    } catch (e) {
+      data.append('ref', '');
+    }
+    send('<?= e(public_url('analytics.php')) ?>', data);
+  }, 2500);
 }());
 </script>
 <?php $rankingRefreshQueue = function_exists('pcf_public_ranking_refresh_queue') ? pcf_public_ranking_refresh_queue() : []; ?>
