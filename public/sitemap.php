@@ -23,13 +23,9 @@ function sitemap_url(string $loc, string $changefreq, string $priority): void
 function sitemap_table_count(string $table, string $where = ''): int
 {
     try {
-        if (!db_table_exists($table)) {
-            return 0;
-        }
+        if (!db_table_exists($table)) return 0;
         $sql = 'SELECT COUNT(*) FROM ' . $table;
-        if ($where !== '') {
-            $sql .= ' WHERE ' . $where;
-        }
+        if ($where !== '') $sql .= ' WHERE ' . $where;
         return (int)db()->query($sql)->fetchColumn();
     } catch (Throwable) {
         return 0;
@@ -39,16 +35,12 @@ function sitemap_table_count(string $table, string $where = ''): int
 function sitemap_emit_table(string $table, string $path, string $changefreq, string $priority, int $start, int &$remaining, string $where = ''): int
 {
     $count = sitemap_table_count($table, $where);
-    if ($remaining <= 0 || $start >= $count) {
-        return $count;
-    }
+    if ($remaining <= 0 || $start >= $count) return $count;
 
     $limit = min($remaining, $count - $start);
     try {
         $sql = 'SELECT id FROM ' . $table;
-        if ($where !== '') {
-            $sql .= ' WHERE ' . $where;
-        }
+        if ($where !== '') $sql .= ' WHERE ' . $where;
         $sql .= ' ORDER BY id ASC LIMIT :limit OFFSET :offset';
         $stmt = db()->prepare($sql);
         $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
@@ -56,15 +48,12 @@ function sitemap_emit_table(string $table, string $path, string $changefreq, str
         $stmt->execute();
         foreach ($stmt->fetchAll() ?: [] as $row) {
             $id = (int)($row['id'] ?? 0);
-            if ($id <= 0) {
-                continue;
-            }
+            if ($id <= 0) continue;
             sitemap_url(public_url($path) . '?id=' . rawurlencode((string)$id), $changefreq, $priority);
             $remaining--;
         }
     } catch (Throwable) {
     }
-
     return $count;
 }
 
@@ -80,12 +69,12 @@ $totalUrls = count($staticUrls);
 foreach ($tables as $table) {
     $totalUrls += sitemap_table_count((string)$table[0], (string)($table[4] ?? ''));
 }
+$totalParts = max(1, (int)ceil($totalUrls / $perSitemap));
 
 if ((isset($_GET['index']) && (string)$_GET['index'] === '1') || ($totalUrls > $perSitemap && !isset($_GET['part']))) {
     echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
     echo "<sitemapindex xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n";
-    $pages = max(1, (int)ceil($totalUrls / $perSitemap));
-    for ($i = 1; $i <= $pages; $i++) {
+    for ($i = 1; $i <= $totalParts; $i++) {
         echo "  <sitemap>\n";
         echo '    <loc>' . sitemap_e(public_url('sitemap.php') . '?part=' . $i) . "</loc>\n";
         echo "  </sitemap>\n";
@@ -94,7 +83,19 @@ if ((isset($_GET['index']) && (string)$_GET['index'] === '1') || ($totalUrls > $
     return;
 }
 
-$part = max(1, min(1000, (int)($_GET['part'] ?? 1)));
+$part = 1;
+if (isset($_GET['part'])) {
+    $validatedPart = filter_var($_GET['part'], FILTER_VALIDATE_INT, [
+        'options' => ['min_range' => 1, 'max_range' => $totalParts],
+    ]);
+    if ($validatedPart === false) {
+        http_response_code(404);
+        echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+        echo "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"/>\n";
+        return;
+    }
+    $part = $validatedPart;
+}
 $start = ($part - 1) * $perSitemap;
 $remaining = $perSitemap;
 
@@ -102,12 +103,8 @@ echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
 echo "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n";
 
 foreach ($staticUrls as $index => $url) {
-    if ($index < $start) {
-        continue;
-    }
-    if ($remaining <= 0) {
-        break;
-    }
+    if ($index < $start) continue;
+    if ($remaining <= 0) break;
     sitemap_url((string)$url[0], (string)$url[1], (string)$url[2]);
     $remaining--;
 }
