@@ -30,24 +30,18 @@ function pcf_session_is_required(): bool
 
     $scriptName = basename((string)($_SERVER['SCRIPT_NAME'] ?? ''));
     $requestPath = (string)(parse_url((string)($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH) ?: '/');
-    $sessionName = session_name();
-    $hasSessionCookie = $sessionName !== '' && isset($_COOKIE[$sessionName]);
 
-    if (
-        !str_contains($requestPath, '/admin/')
-        && in_array($scriptName, ['analytics.php', 'ranking_refresh.php'], true)
-    ) {
-        return false;
-    }
-    if (
-        !str_contains($requestPath, '/admin/')
-        && $scriptName === 'page_view_beacon.php'
-        && !$hasSessionCookie
-    ) {
-        return false;
-    }
-    if ($hasSessionCookie) {
+    $sessionName = session_name();
+    if ($sessionName !== '' && isset($_COOKIE[$sessionName])) {
         return true;
+    }
+
+    if (!str_contains($requestPath, '/admin/') && in_array($scriptName, [
+        'analytics.php',
+        'page_view_beacon.php',
+        'ranking_refresh.php',
+    ], true)) {
+        return false;
     }
 
     $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
@@ -95,6 +89,17 @@ if (!headers_sent()) {
     header('X-Frame-Options: SAMEORIGIN');
     header('Referrer-Policy: strict-origin-when-cross-origin');
     header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
+
+    $requestPath = (string)(parse_url((string)($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH) ?: '/');
+    $scriptName = basename((string)($_SERVER['SCRIPT_NAME'] ?? ''));
+    if (str_contains($requestPath, '/admin/') || in_array($scriptName, [
+        'login0718.php',
+        'forgot_password.php',
+        'reset_password.php',
+        'setup_check.php',
+    ], true)) {
+        header('X-Robots-Tag: noindex, nofollow', true);
+    }
 }
 
 require_once __DIR__ . '/db.php';
