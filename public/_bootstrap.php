@@ -29,8 +29,6 @@ $socialCardUserAgent = (string)($_SERVER['HTTP_USER_AGENT'] ?? '');
 $isSocialCardCrawler = $socialCardUserAgent !== ''
     && preg_match('/(?:Twitterbot|facebookexternalhit|Discordbot|Slackbot|LinkedInBot)/i', $socialCardUserAgent) === 1;
 if ($isSocialCardCrawler) {
-    // Social preview crawlers must not receive an item HTML file cached before
-    // an OGP deployment. Normal visitors still use the existing 600s cache.
     header('Cache-Control: public, max-age=60');
 } else {
     pcf_public_page_cache_start($publicPageCacheTtl);
