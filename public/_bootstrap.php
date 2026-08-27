@@ -29,8 +29,10 @@ $socialCardUserAgent = (string)($_SERVER['HTTP_USER_AGENT'] ?? '');
 $isSocialCardCrawler = $socialCardUserAgent !== ''
     && preg_match('/(?:Twitterbot|facebookexternalhit|Discordbot|Slackbot|LinkedInBot)/i', $socialCardUserAgent) === 1;
 if ($isSocialCardCrawler) {
-    // Social-card crawlers must see the latest OGP immediately after deployment;
-    // serving an older cached item HTML can keep a broken og:image alive for minutes.
+    // Social-card crawlers must see current meta tags instead of an item HTML
+    // generated before the latest OGP/image deployment. This bypass applies
+    // only to known social preview bots, so normal page-cache performance is
+    // unchanged for visitors.
     header('Cache-Control: public, max-age=60');
 } else {
     pcf_public_page_cache_start($publicPageCacheTtl);
