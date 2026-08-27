@@ -1,7 +1,11 @@
 ErrorDocument 404 /404.php
 RewriteEngine On
+RewriteCond %{HTTP_HOST} ^www\.pinkclub-fl\.com$ [NC]
+RewriteRule ^ https://pinkclub-fl.com%{REQUEST_URI} [R=301,L,NE]
+RewriteCond %{HTTP_HOST} ^pinkclub-fl\.com$ [NC]
 RewriteCond %{HTTPS} !=on
-RewriteRule ^(?:index\.(?:php|com))?$ https://%{HTTP_HOST}/ [R=301,L]
+RewriteCond %{HTTP:X-Forwarded-Proto} !https [NC]
+RewriteRule ^ https://pinkclub-fl.com%{REQUEST_URI} [R=301,L,NE]
 RewriteRule ^index\.(?:php|com)$ / [R=301,L]
 RewriteCond %{THE_REQUEST} \s/+public/(item|items|search)\.php(?:[?\s]) [NC]
 RewriteRule ^public/(item|items|search)\.php$ /$1.php [R=301,L,NE]
