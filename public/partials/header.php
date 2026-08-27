@@ -74,7 +74,12 @@ $ogImage = isset($ogImage) && is_string($ogImage) ? trim($ogImage) : '';
 if ($ogImage === '' && $logoPath !== '') {
     $ogImage = $logoUrl;
 }
-if ($ogImage !== '' && !str_starts_with($ogImage, 'http://') && !str_starts_with($ogImage, 'https://') && !str_starts_with($ogImage, '/')) {
+if (str_starts_with($ogImage, '//')) {
+    $baseScheme = strtolower((string)(parse_url(BASE_URL, PHP_URL_SCHEME) ?: 'https'));
+    $ogImage = ($baseScheme === 'http' ? 'http:' : 'https:') . $ogImage;
+} elseif (str_starts_with($ogImage, '/')) {
+    $ogImage = app_url($ogImage);
+} elseif ($ogImage !== '' && !str_starts_with($ogImage, 'http://') && !str_starts_with($ogImage, 'https://')) {
     $ogImage = asset_url($ogImage);
 }
 $jsonLdText = isset($jsonLd) && is_string($jsonLd) && $jsonLd !== '' ? $jsonLd : '';
@@ -97,13 +102,20 @@ $relNextHref = isset($relNext) && is_string($relNext) && $relNext !== '' ? $relN
   <meta property="og:title" content="<?= e($titleText) ?>">
   <?php if ($descriptionText !== ''): ?><meta property="og:description" content="<?= e($descriptionText) ?>"><?php endif; ?>
   <meta property="og:url" content="<?= e($ogUrl) ?>">
-  <?php if ($ogImage !== ''): ?><meta property="og:image" content="<?= e($ogImage) ?>"><?php endif; ?>
+  <?php if ($ogImage !== ''): ?>
+  <meta property="og:image" content="<?= e($ogImage) ?>">
+  <?php if (str_starts_with($ogImage, 'https://')): ?><meta property="og:image:secure_url" content="<?= e($ogImage) ?>"><?php endif; ?>
+  <meta property="og:image:alt" content="<?= e($titleText) ?>">
+  <?php endif; ?>
   <meta property="og:site_name" content="<?= e($siteName) ?>">
   <meta property="og:locale" content="ja_JP">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="<?= e($titleText) ?>">
   <?php if ($descriptionText !== ''): ?><meta name="twitter:description" content="<?= e($descriptionText) ?>"><?php endif; ?>
-  <?php if ($ogImage !== ''): ?><meta name="twitter:image" content="<?= e($ogImage) ?>"><?php endif; ?>
+  <?php if ($ogImage !== ''): ?>
+  <meta name="twitter:image" content="<?= e($ogImage) ?>">
+  <meta name="twitter:image:alt" content="<?= e($titleText) ?>">
+  <?php endif; ?>
   <?php if ($jsonLdText !== ''): ?><script type="application/ld+json"><?= $jsonLdText ?></script><?php endif; ?>
   <?php if ($customHeadCode !== ''): ?>
 <?= $customHeadCode ?>

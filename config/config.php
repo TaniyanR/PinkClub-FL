@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-$configuredBaseUrl = trim((string) getenv('BASE_URL'));
-
 function normalize_configured_base_url(string $value): string
 {
     $normalized = rtrim(trim($value), '/');
@@ -28,8 +26,24 @@ function normalize_configured_base_url(string $value): string
         return '';
     }
 
-    return rtrim($normalized, '/');
+    $normalized = rtrim($normalized, '/');
+    $parts = parse_url($normalized);
+    if (!is_array($parts)
+        || !isset($parts['scheme'], $parts['host'])
+        || !in_array(strtolower((string)$parts['scheme']), ['http', 'https'], true)
+        || trim((string)$parts['host']) === ''
+        || isset($parts['user'])
+        || isset($parts['pass'])
+        || isset($parts['query'])
+        || isset($parts['fragment'])
+    ) {
+        return '';
+    }
+
+    return $normalized;
 }
+
+$configuredBaseUrl = normalize_configured_base_url((string)getenv('BASE_URL'));
 
 /**
  * Resolve application base path from the current script location.
@@ -128,6 +142,49 @@ function apply_detected_path_to_base_url(string $configuredUrl, string $detected
     return $trimmed . $detectedPath;
 }
 
+/**
+ * Return a syntactically safe authority for generated absolute URLs.
+ *
+ * HTTP_HOST is controlled by the request and must not be copied verbatim into
+ * canonical URLs, redirects, or the sitemap. BASE_URL remains the preferred
+ * production source; this fallback only accepts DNS names, IPv4 addresses and
+ * bracketed IPv6 addresses with an optional numeric port.
+ */
+function normalize_request_host(string $host): string
+{
+    $host = trim($host);
+    if ($host === '' || preg_match('/[\x00-\x20\x7f\/\\\\?#@]/', $host) === 1) {
+        return 'localhost';
+    }
+
+    if (preg_match('/^\[([0-9a-f:.]+)\](?::([0-9]{1,5}))?$/i', $host, $ipv6Parts) === 1) {
+        if (filter_var($ipv6Parts[1], FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false) {
+            return 'localhost';
+        }
+        if (isset($ipv6Parts[2])) {
+            $port = (int)$ipv6Parts[2];
+            if ($port < 1 || $port > 65535) {
+                return 'localhost';
+            }
+        }
+        return strtolower($host);
+    }
+
+    if (preg_match('/^(?:[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?|[0-9.]+)(?::[0-9]{1,5})?$/i', $host) !== 1) {
+        return 'localhost';
+    }
+
+    $portSeparator = strrpos($host, ':');
+    if ($portSeparator !== false) {
+        $port = (int)substr($host, $portSeparator + 1);
+        if ($port < 1 || $port > 65535) {
+            return 'localhost';
+        }
+    }
+
+    return strtolower($host);
+}
+
 $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? '/'));
 $basePath = detect_base_path($scriptName);
 if ($basePath === '') {
@@ -147,7 +204,7 @@ if ($configuredBaseUrl !== '') {
         $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     }
 
-    $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
+    $host = normalize_request_host((string) ($_SERVER['HTTP_HOST'] ?? 'localhost'));
     $baseUrl = rtrim("{$scheme}://{$host}{$basePath}", '/');
 }
 
