@@ -35,8 +35,8 @@ function normalize_configured_base_url(string $value): string
  * Resolve application base path from the current script location.
  *
  * Examples:
- * - /pinkclub-fanza/public/index.php                => /pinkclub-fanza
- * - /pinkclub-fanza/admin/index.php                 => /pinkclub-fanza
+ * - /pinkclub-fanza/public/index.php => /pinkclub-fanza
+ * - /pinkclub-fanza/admin/index.php  => /pinkclub-fanza
  */
 function detect_base_path(string $scriptName): string
 {
@@ -108,8 +108,10 @@ function detect_base_path_from_request_uri(string $requestUri): string
  * append the detected path. If BASE_URL already contains a non-root path,
  * do not modify it.
  */
-function apply_detected_path_to_base_url(string $configuredUrl, string $detectedPath): string
-{
+function apply_detected_path_to_base_url(
+    string $configuredUrl,
+    string $detectedPath
+): string {
     $trimmed = rtrim($configuredUrl, '/');
     if ($trimmed === '' || $detectedPath === '') {
         return $trimmed;
@@ -120,9 +122,12 @@ function apply_detected_path_to_base_url(string $configuredUrl, string $detected
         return $trimmed;
     }
 
-    $configuredPath = isset($parts['path']) ? rtrim((string) $parts['path'], '/') : '';
+    $configuredPath = isset($parts['path'])
+        ? rtrim((string) $parts['path'], '/')
+        : '';
+
     if ($configuredPath !== '' && $configuredPath !== '/') {
-        return $trimmed; // already has a path
+        return $trimmed;
     }
 
     return $trimmed . $detectedPath;
@@ -139,25 +144,53 @@ function apply_detected_path_to_base_url(string $configuredUrl, string $detected
 function normalize_request_host(string $host): string
 {
     $host = trim($host);
-    if ($host === '' || preg_match('/[\x00-\x20\x7f\/\\\\?#@]/', $host) === 1) {
+
+    if (
+        $host === ''
+        || preg_match('/[\x00-\x20\x7f\/\\\\?#@]/', $host) === 1
+    ) {
         return 'localhost';
     }
 
-    if (preg_match('/^\[([0-9a-f:.]+)\](?::([0-9]{1,5}))?$/i', $host, $ipv6Parts) === 1) {
-        if (filter_var($ipv6Parts[1], FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false) {
+    if (
+        preg_match(
+            '/^\[([0-9a-f:.]+)\](?::([0-9]{1,5}))?$/i',
+            $host,
+            $ipv6Parts
+        ) === 1
+    ) {
+        if (
+            filter_var(
+                $ipv6Parts[1],
+                FILTER_VALIDATE_IP,
+                FILTER_FLAG_IPV6
+            ) === false
+        ) {
             return 'localhost';
         }
-        $port = isset($ipv6Parts[2]) ? (int)$ipv6Parts[2] : 0;
-        return $port === 0 || $port <= 65535 ? strtolower($host) : 'localhost';
+
+        if (isset($ipv6Parts[2])) {
+            $port = (int) $ipv6Parts[2];
+            if ($port < 1 || $port > 65535) {
+                return 'localhost';
+            }
+        }
+
+        return strtolower($host);
     }
 
-    if (preg_match('/^(?:[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?|[0-9.]+)(?::[0-9]{1,5})?$/i', $host) !== 1) {
+    if (
+        preg_match(
+            '/^(?:[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?|[0-9.]+)(?::[0-9]{1,5})?$/i',
+            $host
+        ) !== 1
+    ) {
         return 'localhost';
     }
 
     $portSeparator = strrpos($host, ':');
     if ($portSeparator !== false) {
-        $port = (int)substr($host, $portSeparator + 1);
+        $port = (int) substr($host, $portSeparator + 1);
         if ($port < 1 || $port > 65535) {
             return 'localhost';
         }
@@ -166,10 +199,17 @@ function normalize_request_host(string $host): string
     return strtolower($host);
 }
 
-$scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? '/'));
+$scriptName = str_replace(
+    '\\',
+    '/',
+    (string) ($_SERVER['SCRIPT_NAME'] ?? '/')
+);
+
 $basePath = detect_base_path($scriptName);
 if ($basePath === '') {
-    $basePath = detect_base_path_from_request_uri((string) ($_SERVER['REQUEST_URI'] ?? ''));
+    $basePath = detect_base_path_from_request_uri(
+        (string) ($_SERVER['REQUEST_URI'] ?? '')
+    );
 }
 
 if ($configuredBaseUrl !== '') {
@@ -178,26 +218,43 @@ if ($configuredBaseUrl !== '') {
         $basePath
     );
 } else {
-    $requestScheme = trim((string) ($_SERVER['REQUEST_SCHEME'] ?? ''));
+    $requestScheme = trim(
+        (string) ($_SERVER['REQUEST_SCHEME'] ?? '')
+    );
+
     if ($requestScheme !== '') {
         $scheme = $requestScheme;
     } else {
-        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $scheme = (
+            !empty($_SERVER['HTTPS'])
+            && $_SERVER['HTTPS'] !== 'off'
+        )
+            ? 'https'
+            : 'http';
     }
 
-    $host = normalize_request_host((string) ($_SERVER['HTTP_HOST'] ?? 'localhost'));
-    $baseUrl = rtrim("{$scheme}://{$host}{$basePath}", '/');
+    $host = normalize_request_host(
+        (string) ($_SERVER['HTTP_HOST'] ?? 'localhost')
+    );
+
+    $baseUrl = rtrim(
+        "{$scheme}://{$host}{$basePath}",
+        '/'
+    );
 }
 
 if (!defined('APP_NAME')) {
     define('APP_NAME', 'PinkClub-FL');
 }
+
 if (!defined('BASE_URL')) {
     define('BASE_URL', $baseUrl);
 }
+
 if (!defined('LOGIN_PATH')) {
     define('LOGIN_PATH', '/public/login0718.php');
 }
+
 if (!defined('ADMIN_HOME_PATH')) {
     define('ADMIN_HOME_PATH', '/admin/index.php');
 }
@@ -210,19 +267,38 @@ $dbConfig = [
     'pass' => '',
     'charset' => 'utf8mb4',
 ];
+
 $localConfigPath = __DIR__ . '/../config.local.php';
+
 if (is_file($localConfigPath)) {
     try {
         $localConfig = require $localConfigPath;
-        if (is_array($localConfig) && isset($localConfig['db']) && is_array($localConfig['db'])) {
+
+        if (
+            is_array($localConfig)
+            && isset($localConfig['db'])
+            && is_array($localConfig['db'])
+        ) {
             $localDbConfig = $localConfig['db'];
-            if (!isset($localDbConfig['dbname']) && isset($localDbConfig['name'])) {
+
+            if (
+                !isset($localDbConfig['dbname'])
+                && isset($localDbConfig['name'])
+            ) {
                 $localDbConfig['dbname'] = $localDbConfig['name'];
             }
-            if (!isset($localDbConfig['pass']) && isset($localDbConfig['password'])) {
+
+            if (
+                !isset($localDbConfig['pass'])
+                && isset($localDbConfig['password'])
+            ) {
                 $localDbConfig['pass'] = $localDbConfig['password'];
             }
-            $dbConfig = array_replace($dbConfig, array_intersect_key($localDbConfig, $dbConfig));
+
+            $dbConfig = array_replace(
+                $dbConfig,
+                array_intersect_key($localDbConfig, $dbConfig)
+            );
         }
     } catch (Throwable $e) {
         $GLOBALS['config_local_error'] = $e->getMessage();

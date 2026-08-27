@@ -636,18 +636,10 @@ $productJsonLd = [
     '@type' => 'Product',
     'name' => $title,
     'description' => $pageDescription,
-    'offers' => [
-        '@type' => 'Offer',
-        'url' => $affiliateUrl !== '' ? $affiliateUrl : $canonicalUrl,
-        'priceCurrency' => 'JPY',
-        'availability' => 'https://schema.org/InStock',
-    ],
+    'url' => $canonicalUrl,
 ];
 if ($ogImage !== '') {
     $productJsonLd['image'] = $ogImage;
-}
-if ($actressNames !== []) {
-    $productJsonLd['actor'] = array_map(static fn($name) => ['@type' => 'Person', 'name' => $name], $actressNames);
 }
 $jsonLd = (string)json_encode($productJsonLd, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP);
 

@@ -74,7 +74,12 @@ $ogImage = isset($ogImage) && is_string($ogImage) ? trim($ogImage) : '';
 if ($ogImage === '' && $logoPath !== '') {
     $ogImage = $logoUrl;
 }
-if ($ogImage !== '' && !str_starts_with($ogImage, 'http://') && !str_starts_with($ogImage, 'https://') && !str_starts_with($ogImage, '/')) {
+if (str_starts_with($ogImage, '//')) {
+    $baseScheme = strtolower((string)(parse_url(BASE_URL, PHP_URL_SCHEME) ?: 'https'));
+    $ogImage = ($baseScheme === 'http' ? 'http:' : 'https:') . $ogImage;
+} elseif (str_starts_with($ogImage, '/')) {
+    $ogImage = app_url($ogImage);
+} elseif ($ogImage !== '' && !str_starts_with($ogImage, 'http://') && !str_starts_with($ogImage, 'https://')) {
     $ogImage = asset_url($ogImage);
 }
 $jsonLdText = isset($jsonLd) && is_string($jsonLd) && $jsonLd !== '' ? $jsonLd : '';
