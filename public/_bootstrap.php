@@ -25,7 +25,16 @@ $longCachePublicPages = [
     'page.php',
 ];
 $publicPageCacheTtl = in_array($publicScriptName, $longCachePublicPages, true) ? 600 : 120;
-pcf_public_page_cache_start($publicPageCacheTtl);
+$socialCardUserAgent = (string)($_SERVER['HTTP_USER_AGENT'] ?? '');
+$isSocialCardCrawler = $socialCardUserAgent !== ''
+    && preg_match('/(?:Twitterbot|facebookexternalhit|Discordbot|Slackbot|LinkedInBot)/i', $socialCardUserAgent) === 1;
+if ($isSocialCardCrawler) {
+    // Social-card crawlers must see the latest OGP immediately after deployment;
+    // serving an older cached item HTML can keep a broken og:image alive for minutes.
+    header('Cache-Control: public, max-age=60');
+} else {
+    pcf_public_page_cache_start($publicPageCacheTtl);
+}
 
 $readOnlyPublicPages = [
     'index.php',
@@ -34,6 +43,7 @@ $readOnlyPublicPages = [
     'search.php',
     'directory.php',
     'posts.php',
+    'post.php',
     'article.php',
     'sample_images.php',
     'ranking_refresh.php',
