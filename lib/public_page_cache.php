@@ -73,7 +73,14 @@ function pcf_public_page_cache_start(int $ttlSeconds = 120): void
         return;
     }
 
-    $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+    $baseParts = parse_url(defined('BASE_URL') ? (string)BASE_URL : '');
+    $cacheHost = is_array($baseParts) ? strtolower((string)($baseParts['host'] ?? '')) : '';
+    $cachePort = is_array($baseParts) && isset($baseParts['port']) ? (int)$baseParts['port'] : null;
+    if ($cacheHost === '') {
+        $cacheHost = 'pinkclub-fl.com';
+    }
+    $cacheAuthority = $cacheHost . ($cachePort !== null ? ':' . $cachePort : '');
+
     $variant = pcf_public_request_is_mobile() ? 'sp' : 'pc';
     $cacheQuery = [];
     parse_str((string)(parse_url($requestUri, PHP_URL_QUERY) ?? ''), $cacheQuery);
@@ -112,7 +119,7 @@ function pcf_public_page_cache_start(int $ttlSeconds = 120): void
     if ($normalizedQuery !== '') {
         $normalizedRequestUri .= '?' . $normalizedQuery;
     }
-    $cacheKey = hash('sha256', 'v8|' . $host . '|' . $variant . '|' . $normalizedRequestUri);
+    $cacheKey = hash('sha256', 'v9|' . $cacheAuthority . '|' . $variant . '|' . $normalizedRequestUri);
     $cacheFile = $cacheDirectory . '/' . $cacheKey . '.html';
     $cacheLockFile = $cacheDirectory . '/.regenerate-' . substr($cacheKey, 0, 1) . '.lock';
 
@@ -167,7 +174,7 @@ function pcf_public_page_cache_start(int $ttlSeconds = 120): void
     header('X-PCF-Page-Cache: MISS');
     ob_start();
 
-    register_shutdown_function(static function () use ($cacheFile, $cacheDirectory, $method, $scriptName, $lockHandle): void {
+    register_shutdown_function(static function () use ($cacheFile, $cacheDirectory, $method, $lockHandle): void {
         if (ob_get_level() < 1) {
             if (is_resource($lockHandle)) {
                 @flock($lockHandle, LOCK_UN);
@@ -191,12 +198,6 @@ function pcf_public_page_cache_start(int $ttlSeconds = 120): void
         }
 
         if ($status === 200 && $content !== '') {
-            if ($scriptName === 'item.php' && str_contains($content, '</body>')) {
-                $beaconUrl = function_exists('public_url') ? public_url('page_view_beacon.php') : 'page_view_beacon.php';
-                $beaconScript = '<script>(()=>{try{const p=new URLSearchParams(location.search);const b=new URLSearchParams();for(const k of ["id","content_id","cid"]){const v=p.get(k);if(v)b.set(k,v);}if([...b].length){const u=' . json_encode($beaconUrl, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . ';if(!(navigator.sendBeacon&&navigator.sendBeacon(u,b))&&window.fetch){fetch(u,{method:"POST",body:b,credentials:"same-origin",keepalive:true}).catch(()=>{});}}}catch(e){}})();</script>';
-                $content = str_replace('</body>', $beaconScript . '</body>', $content);
-            }
-
             try {
                 $suffix = bin2hex(random_bytes(4));
             } catch (Throwable) {

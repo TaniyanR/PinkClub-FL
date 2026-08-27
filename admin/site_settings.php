@@ -63,13 +63,19 @@ $saveImage = static function (array $file, string $prefix, int $minW, int $maxW,
         return ['ok' => false, 'message' => '対応していない拡張子です。'];
     }
 
-    $dest = $uploadDir . '/' . $name;
+    try {
+        $uniqueSuffix = bin2hex(random_bytes(8));
+    } catch (Throwable) {
+        $uniqueSuffix = str_replace('.', '', uniqid('', true));
+    }
+    $storedName = sprintf('%s-%s.%s', $prefix, $uniqueSuffix, $ext);
+    $dest = $uploadDir . '/' . $storedName;
 
     if (!move_uploaded_file($tmp, $dest)) {
         return ['ok' => false, 'message' => '画像の保存に失敗しました。'];
     }
 
-    return ['ok' => true, 'path' => 'uploads/site_settings/' . $name];
+    return ['ok' => true, 'path' => 'uploads/site_settings/' . $storedName];
 };
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -79,6 +85,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tagline = trim((string)post('site_tagline', ''));
     $keywords = trim((string)post('site_keywords', ''));
 
+    if ($siteUrl !== '') {
+        $siteUrlParts = parse_url($siteUrl);
+        $siteUrlScheme = is_array($siteUrlParts) ? strtolower((string)($siteUrlParts['scheme'] ?? '')) : '';
+        if (filter_var($siteUrl, FILTER_VALIDATE_URL) === false
+            || !in_array($siteUrlScheme, ['http', 'https'], true)
+            || !is_array($siteUrlParts)
+            || trim((string)($siteUrlParts['host'] ?? '')) === ''
+            || isset($siteUrlParts['user'])
+            || isset($siteUrlParts['pass'])) {
+            $error = 'URLは http:// または https:// から始まる正しいサイトURLを入力してください。';
+        }
+    }
+
     $updates = [
         'site.title' => $siteName,
         'site.name' => $siteName,
@@ -87,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'site.keywords' => $keywords,
     ];
 
-    if (isset($_FILES['site_logo']) && (int)($_FILES['site_logo']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+    if ($error === null && isset($_FILES['site_logo']) && (int)($_FILES['site_logo']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
         $logoResult = $saveImage((array)$_FILES['site_logo'], 'logo', 250, 400, 50, 100, false, ['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
         if (($logoResult['ok'] ?? false) === true) {
             $updates['site.logo_path'] = (string)$logoResult['path'];
@@ -101,7 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (($faviconResult['ok'] ?? false) === true) {
             $updates['site.favicon_path'] = (string)$faviconResult['path'];
         } else {
-            $error = (string)($faviconResult['message'] ?? 'ファビコンの保存に失敗しました。');
+            $error = (string)($faviconResult['message'] ?? 'ファビコン画像の保存に失敗しました。');
         }
     }
 

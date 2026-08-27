@@ -133,8 +133,10 @@ function auth_attempt(string $username, string $password): bool
         $user = $stmt->fetch();
     } catch (PDOException|RuntimeException $exception) {
         auth_set_last_error('db_error');
-        if (function_exists('installer_log')) {
-            installer_log('auth db error: ' . $exception->getMessage());
+        if (function_exists('installer_log_exception')) {
+            installer_log_exception('auth_db', $exception);
+        } elseif (function_exists('installer_log')) {
+            installer_log('step=auth_db status=failed');
         }
         return false;
     }
@@ -161,7 +163,8 @@ function auth_require_admin(): void
         app_redirect(LOGIN_PATH);
     }
 
-    if ((installer_status()['completed'] ?? false) !== true) {
+    $knownInstalled = function_exists('setup_guard_marker_exists') && setup_guard_marker_exists();
+    if (!$knownInstalled && (installer_status()['completed'] ?? false) !== true) {
         app_redirect('/public/setup_check.php');
     }
 

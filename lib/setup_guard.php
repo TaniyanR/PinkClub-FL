@@ -25,16 +25,15 @@ function setup_guard_mark_installed(): bool
     } catch (Throwable) {
         $suffix = uniqid('', true);
     }
-    $payload = "PinkClub installed\n" . date('c') . "\n";
+
     $tmp = $path . '.tmp-' . $suffix;
+    $payload = "PinkClub installed\n" . date('c') . "\n";
     if (@file_put_contents($tmp, $payload, LOCK_EX) === false) {
-        error_log('[setup] unable to write installed-state marker');
         return false;
     }
     @chmod($tmp, 0640);
     if (!@rename($tmp, $path)) {
         @unlink($tmp);
-        error_log('[setup] unable to publish installed-state marker');
         return false;
     }
     return true;
@@ -66,28 +65,56 @@ function setup_guard_log_has_completion_evidence(): bool
     return str_contains($tail, 'step=completed status=ok');
 }
 
+function setup_guard_db_has_completion_evidence(): bool
+{
+    try {
+        if (!db_can_connect() || !db_table_exists('admins') || !db_table_exists('settings')) {
+            return false;
+        }
+        $adminStmt = db()->query('SELECT 1 FROM admins ORDER BY id ASC LIMIT 1');
+        if ($adminStmt === false || $adminStmt->fetchColumn() === false) {
+            return false;
+        }
+        $readyStmt = db()->prepare('SELECT setting_value FROM settings WHERE setting_key = :key LIMIT 1');
+        $readyStmt->execute([':key' => 'installer.ready']);
+        return (string)($readyStmt->fetchColumn() ?: '') === '1';
+    } catch (Throwable) {
+        return false;
+    }
+}
+
 function setup_guard_is_known_installed(): bool
 {
     if (setup_guard_marker_exists()) {
         return true;
     }
-
-    if (setup_guard_log_has_completion_evidence()) {
+    if (setup_guard_log_has_completion_evidence() || setup_guard_db_has_completion_evidence()) {
         setup_guard_mark_installed();
         return true;
     }
+    return false;
+}
 
+function setup_guard_bootstrap_installed_marker(): void
+{
+    if (PHP_SAPI === 'cli' || setup_guard_marker_exists()) {
+        return;
+    }
+    if (setup_guard_log_has_completion_evidence() || setup_guard_db_has_completion_evidence()) {
+        setup_guard_mark_installed();
+    }
+}
+
+function setup_guard_recovery_is_authorized(): bool
+{
     try {
-        $status = installer_status();
-        if (($status['completed'] ?? false) === true) {
-            setup_guard_mark_installed();
+        $user = function_exists('auth_user') ? auth_user() : null;
+        if (is_array($user) && (int)($user['id'] ?? 0) > 0) {
             return true;
         }
-    } catch (Throwable $e) {
-        error_log('[setup] installed-state DB check unavailable');
+    } catch (Throwable) {
     }
-
-    return false;
+    return function_exists('installer_is_local_request') && installer_is_local_request();
 }
 
 function setup_guard_enforce_for_setup_page(): void
@@ -98,7 +125,7 @@ function setup_guard_enforce_for_setup_page(): void
         header('X-Robots-Tag: noindex, nofollow', true);
     }
 
-    if (setup_guard_is_known_installed()) {
+    if (setup_guard_is_known_installed() && !setup_guard_recovery_is_authorized()) {
         if (function_exists('app_redirect')) {
             app_redirect(LOGIN_PATH);
         }
@@ -106,19 +133,12 @@ function setup_guard_enforce_for_setup_page(): void
         exit;
     }
 
-    // If this request performs the first successful installation, persist the
-    // completed state even when setup_check.php exits via a redirect.
     register_shutdown_function(static function (): void {
         if (setup_guard_marker_exists()) {
             return;
         }
-        try {
-            $status = installer_status();
-            if (($status['completed'] ?? false) === true) {
-                setup_guard_mark_installed();
-            }
-        } catch (Throwable) {
-            // An unsuccessful first install remains eligible for setup recovery.
+        if (setup_guard_db_has_completion_evidence()) {
+            setup_guard_mark_installed();
         }
     });
 }
