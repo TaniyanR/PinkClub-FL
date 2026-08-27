@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-$configuredBaseUrl = trim((string) getenv('BASE_URL'));
-
 function normalize_configured_base_url(string $value): string
 {
     $normalized = rtrim(trim($value), '/');
@@ -28,8 +26,24 @@ function normalize_configured_base_url(string $value): string
         return '';
     }
 
-    return rtrim($normalized, '/');
+    $normalized = rtrim($normalized, '/');
+    $parts = parse_url($normalized);
+    if (!is_array($parts)
+        || !isset($parts['scheme'], $parts['host'])
+        || !in_array(strtolower((string)$parts['scheme']), ['http', 'https'], true)
+        || trim((string)$parts['host']) === ''
+        || isset($parts['user'])
+        || isset($parts['pass'])
+        || isset($parts['query'])
+        || isset($parts['fragment'])
+    ) {
+        return '';
+    }
+
+    return $normalized;
 }
+
+$configuredBaseUrl = normalize_configured_base_url((string)getenv('BASE_URL'));
 
 /**
  * Resolve application base path from the current script location.
@@ -74,7 +88,7 @@ function detect_base_path(string $scriptName): string
  */
 function detect_base_path_from_request_uri(string $requestUri): string
 {
-    $path = (string) parse_url($requestUri, PHP_URL_PATH);
+    $path = (string)parse_url($requestUri, PHP_URL_PATH);
     if ($path === '' || $path === '/') {
         return '';
     }
@@ -123,7 +137,7 @@ function apply_detected_path_to_base_url(
     }
 
     $configuredPath = isset($parts['path'])
-        ? rtrim((string) $parts['path'], '/')
+        ? rtrim((string)$parts['path'], '/')
         : '';
 
     if ($configuredPath !== '' && $configuredPath !== '/') {
@@ -170,7 +184,7 @@ function normalize_request_host(string $host): string
         }
 
         if (isset($ipv6Parts[2])) {
-            $port = (int) $ipv6Parts[2];
+            $port = (int)$ipv6Parts[2];
             if ($port < 1 || $port > 65535) {
                 return 'localhost';
             }
@@ -190,7 +204,7 @@ function normalize_request_host(string $host): string
 
     $portSeparator = strrpos($host, ':');
     if ($portSeparator !== false) {
-        $port = (int) substr($host, $portSeparator + 1);
+        $port = (int)substr($host, $portSeparator + 1);
         if ($port < 1 || $port > 65535) {
             return 'localhost';
         }
@@ -202,24 +216,24 @@ function normalize_request_host(string $host): string
 $scriptName = str_replace(
     '\\',
     '/',
-    (string) ($_SERVER['SCRIPT_NAME'] ?? '/')
+    (string)($_SERVER['SCRIPT_NAME'] ?? '/')
 );
 
 $basePath = detect_base_path($scriptName);
 if ($basePath === '') {
     $basePath = detect_base_path_from_request_uri(
-        (string) ($_SERVER['REQUEST_URI'] ?? '')
+        (string)($_SERVER['REQUEST_URI'] ?? '')
     );
 }
 
 if ($configuredBaseUrl !== '') {
     $baseUrl = apply_detected_path_to_base_url(
-        normalize_configured_base_url($configuredBaseUrl),
+        $configuredBaseUrl,
         $basePath
     );
 } else {
     $requestScheme = trim(
-        (string) ($_SERVER['REQUEST_SCHEME'] ?? '')
+        (string)($_SERVER['REQUEST_SCHEME'] ?? '')
     );
 
     if ($requestScheme !== '') {
@@ -234,7 +248,7 @@ if ($configuredBaseUrl !== '') {
     }
 
     $host = normalize_request_host(
-        (string) ($_SERVER['HTTP_HOST'] ?? 'localhost')
+        (string)($_SERVER['HTTP_HOST'] ?? 'localhost')
     );
 
     $baseUrl = rtrim(
