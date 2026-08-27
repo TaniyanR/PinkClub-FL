@@ -71,6 +71,7 @@ $canonicalHref = isset($canonicalUrl) && is_string($canonicalUrl) && $canonicalU
 $ogUrl = isset($ogUrl) && is_string($ogUrl) && $ogUrl !== '' ? $ogUrl : ($canonicalHref !== '' ? $canonicalHref : public_url(basename((string)($_SERVER['SCRIPT_NAME'] ?? 'index.php'))));
 $ogType = isset($ogType) && is_string($ogType) && $ogType !== '' ? $ogType : 'website';
 $ogImage = isset($ogImage) && is_string($ogImage) ? trim($ogImage) : '';
+$pageOgImageProvided = $ogImage !== '';
 if ($ogImage === '' && $logoPath !== '') {
     $ogImage = $logoUrl;
 }
@@ -81,6 +82,11 @@ if (str_starts_with($ogImage, '//')) {
     $ogImage = app_url($ogImage);
 } elseif ($ogImage !== '' && !str_starts_with($ogImage, 'http://') && !str_starts_with($ogImage, 'https://')) {
     $ogImage = asset_url($ogImage);
+}
+$headerScriptName = basename((string)($_SERVER['SCRIPT_NAME'] ?? ''));
+$socialItemId = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+if ($pageOgImageProvided && $headerScriptName === 'item.php' && is_int($socialItemId) && $socialItemId > 0) {
+    $ogImage = public_url('social-image.php') . '?id=' . rawurlencode((string)$socialItemId);
 }
 $jsonLdText = isset($jsonLd) && is_string($jsonLd) && $jsonLd !== '' ? $jsonLd : '';
 $relPrevHref = isset($relPrev) && is_string($relPrev) && $relPrev !== '' ? $relPrev : '';
