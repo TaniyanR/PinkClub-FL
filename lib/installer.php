@@ -42,7 +42,39 @@ function installer_last_error_summary(): ?array
 {
     if (!is_file(installer_last_error_file_path())) { return null; }
     $decoded = json_decode((string)file_get_contents(installer_last_error_file_path()), true);
-    return is_array($decoded) ? $decoded : null;
+    if (!is_array($decoded)) { return null; }
+
+    // Historical releases stored file paths and SQL here. Never expose those
+    // fields through the setup diagnostics, even if an old JSON file remains.
+    return [
+        'time' => (string)($decoded['time'] ?? ''),
+        'step' => (string)($decoded['step'] ?? ''),
+        'class' => (string)($decoded['class'] ?? ''),
+        'message' => isset($decoded['message']) && is_string($decoded['message']) && $decoded['message'] !== ''
+            ? 'セットアップ処理でエラーが発生しました。入力したDB情報とサーバー設定を確認してください。'
+            : '',
+    ];
+}
+
+function installer_safe_log_line(string $line): string
+{
+    $time = '';
+    if (preg_match('/^\[[^\]]+\]/', $line, $m) === 1) {
+        $time = $m[0] . ' ';
+    }
+    $parts = [];
+    foreach (['step', 'status', 'exception', 'migration_applied', 'failed_keys', 'mysqli_errno', 'admin_exists', 'admin_created', 'settings_row_upserted', 'settings_table_normalized', 'already_completed', 'auto_run_blocked'] as $key) {
+        if (preg_match('/(?:^|\s)' . preg_quote($key, '/') . '=([^\s]+)/', $line, $m) === 1) {
+            $value = preg_replace('/[^A-Za-z0-9_.:,\-]/', '', (string)$m[1]) ?? '';
+            if ($value !== '') {
+                $parts[] = $key . '=' . mb_substr($value, 0, 120);
+            }
+        }
+    }
+    if ($parts === []) {
+        return $time . 'diagnostic=redacted';
+    }
+    return $time . implode(' ', $parts);
 }
 
 function installer_log_tail(int $maxLines = 20): array
@@ -50,7 +82,8 @@ function installer_log_tail(int $maxLines = 20): array
     if (!is_file(installer_log_file_path())) { return ['lines' => [], 'error' => 'install.log が存在しません。']; }
     $lines = @file(installer_log_file_path(), FILE_IGNORE_NEW_LINES);
     if (!is_array($lines)) { return ['lines' => [], 'error' => 'install.log の読み取りに失敗しました。']; }
-    return ['lines' => array_slice($lines, -$maxLines), 'error' => null];
+    $tail = array_slice($lines, -max(1, min(100, $maxLines)));
+    return ['lines' => array_map(static fn(string $line): string => installer_safe_log_line($line), $tail), 'error' => null];
 }
 
 function installer_user_error_message(Throwable $exception): string
