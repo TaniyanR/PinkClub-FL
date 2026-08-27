@@ -107,5 +107,8 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/csrf.php';
 require_once __DIR__ . '/installer.php';
 require_once __DIR__ . '/setup_guard.php';
+if (function_exists('setup_guard_bootstrap_installed_marker')) {
+    setup_guard_bootstrap_installed_marker();
+}
 require_once __DIR__ . '/paginator.php';
 require_once __DIR__ . '/app.php';
