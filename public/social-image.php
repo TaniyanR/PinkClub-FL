@@ -3,9 +3,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../lib/bootstrap.php';
 
-const PCF_SOCIAL_IMAGE_MAX_BYTES = 12582912; // 12 MiB
-const PCF_SOCIAL_IMAGE_TTL = 259200; // 3 days
-const PCF_SOCIAL_IMAGE_ERROR_TTL = 300; // 5 minutes
+const PCF_SOCIAL_IMAGE_MAX_BYTES = 12582912;
+const PCF_SOCIAL_IMAGE_TTL = 259200;
+const PCF_SOCIAL_IMAGE_ERROR_TTL = 300;
 const PCF_SOCIAL_IMAGE_MAX_REDIRECTS = 3;
 
 header('X-Content-Type-Options: nosniff', true);
@@ -325,7 +325,7 @@ function pcf_social_image_serve(string $path, string $type, bool $headOnly): voi
     exit;
 }
 
-function pcf_social_image_try_site_fallback(bool $headOnly): void
+function pcf_social_image_try_site_fallback(bool $headOnly): never
 {
     $logoPath = '';
     try {
@@ -409,8 +409,7 @@ if (is_file($errorPath) && (time() - (int)@filemtime($errorPath)) < PCF_SOCIAL_I
     pcf_social_image_try_site_fallback($headOnly);
 }
 
-$lockPath = $base . '.lock';
-$lock = @fopen($lockPath, 'c');
+$lock = @fopen($base . '.lock', 'c');
 if (is_resource($lock)) {
     @flock($lock, LOCK_EX);
 }
@@ -449,8 +448,7 @@ if (!is_array($fetched)) {
 
 $type = (string)$fetched['type'];
 $bytes = (string)$fetched['bytes'];
-$ext = pcf_social_image_extension($type);
-$fileName = $id . '.' . $ext;
+$fileName = $id . '.' . pcf_social_image_extension($type);
 $cachePath = $cacheDir . '/' . $fileName;
 try {
     $suffix = bin2hex(random_bytes(4));
