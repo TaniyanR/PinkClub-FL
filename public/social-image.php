@@ -40,11 +40,7 @@ function pcf_social_image_public_ip(string $ip): bool
         return false;
     }
 
-    return filter_var(
-        $ip,
-        FILTER_VALIDATE_IP,
-        FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
-    ) !== false;
+    return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false;
 }
 
 function pcf_social_image_resolve_public_ips(string $host): array
@@ -59,7 +55,6 @@ function pcf_social_image_resolve_public_ips(string $host): array
             }
         }
     }
-
     if ($ips === []) {
         $fallback = @gethostbynamel($host);
         if (is_array($fallback)) {
@@ -71,7 +66,6 @@ function pcf_social_image_resolve_public_ips(string $host): array
             }
         }
     }
-
     return array_keys($ips);
 }
 
@@ -87,12 +81,10 @@ function pcf_social_image_normalize_url(string $value): string
     if (!filter_var($url, FILTER_VALIDATE_URL)) {
         return '';
     }
-
     $parts = parse_url($url);
     if (!is_array($parts)) {
         return '';
     }
-
     $scheme = strtolower((string)($parts['scheme'] ?? ''));
     $host = strtolower((string)($parts['host'] ?? ''));
     $port = isset($parts['port']) ? (int)$parts['port'] : ($scheme === 'https' ? 443 : 80);
@@ -104,11 +96,9 @@ function pcf_social_image_normalize_url(string $value): string
     ) {
         return '';
     }
-
     if ($scheme === 'http') {
         $url = 'https://' . substr($url, 7);
     }
-
     return $url;
 }
 
@@ -134,11 +124,9 @@ function pcf_social_image_collect_urls(mixed $value, array &$urls): void
         }
         return;
     }
-
     if (!is_array($value)) {
         return;
     }
-
     foreach ($value as $child) {
         pcf_social_image_collect_urls($child, $urls);
     }
@@ -152,7 +140,6 @@ function pcf_social_image_candidates(array $item): array
             pcf_social_image_collect_urls($item[$key], $urls);
         }
     }
-
     $raw = $item['raw_json'] ?? null;
     if (is_string($raw) && trim($raw) !== '') {
         $decoded = json_decode($raw, true);
@@ -164,7 +151,6 @@ function pcf_social_image_candidates(array $item): array
             }
         }
     }
-
     return array_values(array_unique($urls));
 }
 
@@ -172,7 +158,6 @@ function pcf_social_image_detect_type(string $bytes, string $reportedType): stri
 {
     $reportedType = strtolower(trim(explode(';', $reportedType, 2)[0] ?? ''));
     $allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-
     if (function_exists('finfo_open')) {
         $finfo = @finfo_open(FILEINFO_MIME_TYPE);
         if ($finfo !== false) {
@@ -183,7 +168,6 @@ function pcf_social_image_detect_type(string $bytes, string $reportedType): stri
             }
         }
     }
-
     return in_array($reportedType, $allowed, true) ? $reportedType : '';
 }
 
@@ -199,7 +183,6 @@ function pcf_social_image_redirect_url(string $currentUrl, string $location): st
     if (str_starts_with($location, 'http://') || str_starts_with($location, 'https://')) {
         return pcf_social_image_normalize_url($location);
     }
-
     $current = parse_url($currentUrl);
     if (!is_array($current)) {
         return '';
@@ -212,7 +195,6 @@ function pcf_social_image_redirect_url(string $currentUrl, string $location): st
     if (str_starts_with($location, '/')) {
         return pcf_social_image_normalize_url($base . $location);
     }
-
     $path = (string)($current['path'] ?? '/');
     $directory = rtrim(str_replace('\\', '/', dirname($path)), '/');
     if ($directory === '.' || $directory === '/') {
@@ -226,7 +208,6 @@ function pcf_social_image_fetch_once(string $url): ?array
     if (!function_exists('curl_init')) {
         return null;
     }
-
     $parts = parse_url($url);
     if (!is_array($parts)) {
         return null;
@@ -235,12 +216,10 @@ function pcf_social_image_fetch_once(string $url): ?array
     if (strtolower((string)($parts['scheme'] ?? '')) !== 'https' || !pcf_social_image_allowed_host($host)) {
         return null;
     }
-
     $ips = pcf_social_image_resolve_public_ips($host);
     if ($ips === []) {
         return null;
     }
-
     foreach ($ips as $ip) {
         $body = '';
         $contentType = '';
@@ -250,7 +229,6 @@ function pcf_social_image_fetch_once(string $url): ?array
         if ($ch === false) {
             continue;
         }
-
         $resolveIp = str_contains($ip, ':') ? '[' . $ip . ']' : $ip;
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => false,
@@ -284,11 +262,9 @@ function pcf_social_image_fetch_once(string $url): ?array
                 return strlen($chunk);
             },
         ]);
-
         $ok = curl_exec($ch);
         $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         curl_close($ch);
-
         if ($ok === false || $tooLarge) {
             continue;
         }
@@ -298,15 +274,12 @@ function pcf_social_image_fetch_once(string $url): ?array
         if ($status < 200 || $status >= 300 || $body === '') {
             continue;
         }
-
         $type = pcf_social_image_detect_type($body, $contentType);
         if ($type === '') {
             continue;
         }
-
         return ['bytes' => $body, 'type' => $type];
     }
-
     return null;
 }
 
@@ -316,14 +289,12 @@ function pcf_social_image_fetch(string $url): ?array
     if ($currentUrl === '') {
         return null;
     }
-
     $visited = [];
     for ($hop = 0; $hop <= PCF_SOCIAL_IMAGE_MAX_REDIRECTS; $hop++) {
         if (isset($visited[$currentUrl])) {
             return null;
         }
         $visited[$currentUrl] = true;
-
         $result = pcf_social_image_fetch_once($currentUrl);
         if (!is_array($result)) {
             return null;
@@ -331,7 +302,6 @@ function pcf_social_image_fetch(string $url): ?array
         if (isset($result['bytes'], $result['type'])) {
             return $result;
         }
-
         $location = trim((string)($result['redirect'] ?? ''));
         if ($location === '' || $hop >= PCF_SOCIAL_IMAGE_MAX_REDIRECTS) {
             return null;
@@ -341,7 +311,6 @@ function pcf_social_image_fetch(string $url): ?array
             return null;
         }
     }
-
     return null;
 }
 
@@ -370,6 +339,44 @@ function pcf_social_image_serve(string $path, string $type, bool $headOnly): voi
     exit;
 }
 
+function pcf_social_image_try_site_fallback(bool $headOnly): bool
+{
+    $logoPath = '';
+    try {
+        if (function_exists('setting')) {
+            $logoPath = trim((string)setting('site.logo_path', ''));
+            if ($logoPath === '') {
+                $logoPath = trim((string)setting('site_logo', ''));
+            }
+        }
+    } catch (Throwable) {
+        $logoPath = '';
+    }
+    if ($logoPath === '') {
+        return false;
+    }
+    $relative = ltrim($logoPath, '/');
+    $candidates = [
+        dirname(__DIR__) . '/' . $relative,
+        dirname(__DIR__) . '/public/' . $relative,
+    ];
+    foreach ($candidates as $candidate) {
+        if (!is_file($candidate) || !is_readable($candidate)) {
+            continue;
+        }
+        $bytes = @file_get_contents($candidate);
+        if (!is_string($bytes) || $bytes === '') {
+            continue;
+        }
+        $type = pcf_social_image_detect_type($bytes, '');
+        if ($type === '') {
+            continue;
+        }
+        pcf_social_image_serve($candidate, $type, $headOnly);
+    }
+    return false;
+}
+
 $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
 if (!is_int($id) || $id <= 0) {
     http_response_code(404);
@@ -394,7 +401,9 @@ if (!is_dir($cacheDir)) {
     @mkdir($cacheDir, 0755, true);
 }
 if (!is_dir($cacheDir) || !is_writable($cacheDir)) {
-    http_response_code(503);
+    if (!pcf_social_image_try_site_fallback($method === 'HEAD')) {
+        http_response_code(503);
+    }
     exit;
 }
 
@@ -419,7 +428,9 @@ if (is_array($meta)) {
 }
 
 if (is_file($errorPath) && (time() - (int)@filemtime($errorPath)) < PCF_SOCIAL_IMAGE_ERROR_TTL) {
-    http_response_code(404);
+    if (!pcf_social_image_try_site_fallback($headOnly)) {
+        http_response_code(404);
+    }
     exit;
 }
 
@@ -458,7 +469,9 @@ if (!is_array($fetched)) {
         @flock($lock, LOCK_UN);
         fclose($lock);
     }
-    http_response_code(404);
+    if (!pcf_social_image_try_site_fallback($headOnly)) {
+        http_response_code(404);
+    }
     exit;
 }
 
@@ -473,7 +486,6 @@ try {
     $suffix = str_replace('.', '', uniqid('', true));
 }
 $tmpPath = $cachePath . '.tmp-' . $suffix;
-
 $stored = @file_put_contents($tmpPath, $bytes, LOCK_EX) !== false && @rename($tmpPath, $cachePath);
 if (!$stored) {
     @unlink($tmpPath);
@@ -481,7 +493,9 @@ if (!$stored) {
         @flock($lock, LOCK_UN);
         fclose($lock);
     }
-    http_response_code(503);
+    if (!pcf_social_image_try_site_fallback($headOnly)) {
+        http_response_code(503);
+    }
     exit;
 }
 @chmod($cachePath, 0644);
