@@ -232,14 +232,20 @@ if (!function_exists('pcf_item_image')) {
 
         foreach ($candidates as $candidate) {
             $value = trim($candidate);
-            if ($value !== '' && !pcf_is_self_hosted_fanza_image_url($value)) {
+            if ($value !== ''
+                && pcf_looks_like_image_url($value)
+                && !pcf_is_self_hosted_fanza_image_url($value)
+            ) {
                 return $value;
             }
         }
 
         foreach (pcf_parse_image_urls((string)($item['image_list'] ?? '')) as $image) {
             $value = trim((string)$image);
-            if ($value !== '' && !pcf_is_self_hosted_fanza_image_url($value)) {
+            if ($value !== ''
+                && pcf_looks_like_image_url($value)
+                && !pcf_is_self_hosted_fanza_image_url($value)
+            ) {
                 return $value;
             }
         }

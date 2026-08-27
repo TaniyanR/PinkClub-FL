@@ -607,8 +607,28 @@ $pageDescriptionSource = $desc !== '' ? $desc : $title . 'のFANZA通販ペー�
 $pageDescription = mb_strimwidth($pageDescriptionSource, 0, 150, '…', 'UTF-8');
 $canonicalUrl = public_url('item.php') . '?id=' . rawurlencode((string)(int)$item['id']);
 $ogImage = $packageImage;
+// Some API records do not contain a usable package image. Keep social cards
+// visual by falling back to the first API-provided sample image that is also
+// displayed on this page; never advertise a placeholder or a removed local
+// FANZA image.
+if ($ogImage === '') {
+    foreach (array_merge($sampleImages, $sampleImagesSmall) as $socialImageCandidate) {
+        $socialImageCandidate = trim((string)$socialImageCandidate);
+        if ($socialImageCandidate !== '' && !pcf_is_self_hosted_fanza_image_url($socialImageCandidate)) {
+            $ogImage = $socialImageCandidate;
+            break;
+        }
+    }
+}
 if ($ogImage !== '' && str_starts_with($ogImage, '//')) {
     $ogImage = 'https:' . $ogImage;
+}
+$ogImageHost = strtolower((string)(parse_url($ogImage, PHP_URL_HOST) ?: ''));
+if (str_starts_with($ogImage, 'http://')
+    && ($ogImageHost === 'dmm.co.jp' || str_ends_with($ogImageHost, '.dmm.co.jp')
+        || $ogImageHost === 'dmm.com' || str_ends_with($ogImageHost, '.dmm.com'))
+) {
+    $ogImage = 'https://' . substr($ogImage, 7);
 }
 $ogType = 'product';
 $productJsonLd = [
