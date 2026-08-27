@@ -5,9 +5,9 @@ require_once __DIR__ . '/../lib/bootstrap.php';
 
 const PCF_SOCIAL_IMAGE_MAX_BYTES = 12582912; // 12 MiB
 const PCF_SOCIAL_IMAGE_TTL = 259200; // 3 days
-const PCF_SOCIAL_IMAGE_ERROR_TTL = 900; // 15 minutes
+const PCF_SOCIAL_IMAGE_ERROR_TTL = 300; // 5 minutes
+const PCF_SOCIAL_IMAGE_MAX_REDIRECTS = 3;
 
-header('X-Robots-Tag: noindex, nofollow', true);
 header('X-Content-Type-Options: nosniff', true);
 header('Referrer-Policy: no-referrer', true);
 
@@ -92,6 +92,7 @@ function pcf_social_image_normalize_url(string $value): string
     if (!is_array($parts)) {
         return '';
     }
+
     $scheme = strtolower((string)($parts['scheme'] ?? ''));
     $host = strtolower((string)($parts['host'] ?? ''));
     $port = isset($parts['port']) ? (int)$parts['port'] : ($scheme === 'https' ? 443 : 80);
@@ -186,7 +187,41 @@ function pcf_social_image_detect_type(string $bytes, string $reportedType): stri
     return in_array($reportedType, $allowed, true) ? $reportedType : '';
 }
 
-function pcf_social_image_fetch(string $url): ?array
+function pcf_social_image_redirect_url(string $currentUrl, string $location): string
+{
+    $location = trim($location);
+    if ($location === '') {
+        return '';
+    }
+    if (str_starts_with($location, '//')) {
+        return pcf_social_image_normalize_url('https:' . $location);
+    }
+    if (str_starts_with($location, 'http://') || str_starts_with($location, 'https://')) {
+        return pcf_social_image_normalize_url($location);
+    }
+
+    $current = parse_url($currentUrl);
+    if (!is_array($current)) {
+        return '';
+    }
+    $host = (string)($current['host'] ?? '');
+    if ($host === '') {
+        return '';
+    }
+    $base = 'https://' . $host;
+    if (str_starts_with($location, '/')) {
+        return pcf_social_image_normalize_url($base . $location);
+    }
+
+    $path = (string)($current['path'] ?? '/');
+    $directory = rtrim(str_replace('\\', '/', dirname($path)), '/');
+    if ($directory === '.' || $directory === '/') {
+        $directory = '';
+    }
+    return pcf_social_image_normalize_url($base . $directory . '/' . $location);
+}
+
+function pcf_social_image_fetch_once(string $url): ?array
 {
     if (!function_exists('curl_init')) {
         return null;
@@ -197,8 +232,7 @@ function pcf_social_image_fetch(string $url): ?array
         return null;
     }
     $host = strtolower((string)($parts['host'] ?? ''));
-    $scheme = strtolower((string)($parts['scheme'] ?? ''));
-    if ($scheme !== 'https' || !pcf_social_image_allowed_host($host)) {
+    if (strtolower((string)($parts['scheme'] ?? '')) !== 'https' || !pcf_social_image_allowed_host($host)) {
         return null;
     }
 
@@ -210,6 +244,7 @@ function pcf_social_image_fetch(string $url): ?array
     foreach ($ips as $ip) {
         $body = '';
         $contentType = '';
+        $location = '';
         $tooLarge = false;
         $ch = curl_init($url);
         if ($ch === false) {
@@ -220,18 +255,23 @@ function pcf_social_image_fetch(string $url): ?array
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => false,
             CURLOPT_FOLLOWLOCATION => false,
-            CURLOPT_CONNECTTIMEOUT => 4,
-            CURLOPT_TIMEOUT => 10,
-            CURLOPT_USERAGENT => 'PinkClub-FL SocialImage/1.0',
-            CURLOPT_HTTPHEADER => ['Accept: image/avif,image/webp,image/apng,image/*,*/*;q=0.8'],
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => 12,
+            CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; PinkClub-FL-SocialCard/1.1; +https://pinkclub-fl.com/)',
+            CURLOPT_REFERER => 'https://www.dmm.co.jp/',
+            CURLOPT_HTTPHEADER => [
+                'Accept: image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+                'Accept-Language: ja,en-US;q=0.7,en;q=0.3',
+            ],
             CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
-            CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
             CURLOPT_RESOLVE => [$host . ':443:' . $resolveIp],
-            CURLOPT_HEADERFUNCTION => static function ($curl, string $header) use (&$contentType): int {
+            CURLOPT_HEADERFUNCTION => static function ($curl, string $header) use (&$contentType, &$location): int {
                 if (stripos($header, 'Content-Type:') === 0) {
                     $contentType = trim(substr($header, strlen('Content-Type:')));
+                } elseif (stripos($header, 'Location:') === 0) {
+                    $location = trim(substr($header, strlen('Location:')));
                 }
                 return strlen($header);
             },
@@ -249,7 +289,13 @@ function pcf_social_image_fetch(string $url): ?array
         $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         curl_close($ch);
 
-        if ($ok === false || $tooLarge || $status < 200 || $status >= 300 || $body === '') {
+        if ($ok === false || $tooLarge) {
+            continue;
+        }
+        if ($status >= 300 && $status < 400 && $location !== '') {
+            return ['redirect' => $location];
+        }
+        if ($status < 200 || $status >= 300 || $body === '') {
             continue;
         }
 
@@ -259,6 +305,41 @@ function pcf_social_image_fetch(string $url): ?array
         }
 
         return ['bytes' => $body, 'type' => $type];
+    }
+
+    return null;
+}
+
+function pcf_social_image_fetch(string $url): ?array
+{
+    $currentUrl = pcf_social_image_normalize_url($url);
+    if ($currentUrl === '') {
+        return null;
+    }
+
+    $visited = [];
+    for ($hop = 0; $hop <= PCF_SOCIAL_IMAGE_MAX_REDIRECTS; $hop++) {
+        if (isset($visited[$currentUrl])) {
+            return null;
+        }
+        $visited[$currentUrl] = true;
+
+        $result = pcf_social_image_fetch_once($currentUrl);
+        if (!is_array($result)) {
+            return null;
+        }
+        if (isset($result['bytes'], $result['type'])) {
+            return $result;
+        }
+
+        $location = trim((string)($result['redirect'] ?? ''));
+        if ($location === '' || $hop >= PCF_SOCIAL_IMAGE_MAX_REDIRECTS) {
+            return null;
+        }
+        $currentUrl = pcf_social_image_redirect_url($currentUrl, $location);
+        if ($currentUrl === '') {
+            return null;
+        }
     }
 
     return null;
@@ -289,9 +370,7 @@ function pcf_social_image_serve(string $path, string $type, bool $headOnly): voi
     exit;
 }
 
-$id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT, [
-    'options' => ['min_range' => 1],
-]);
+$id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
 if (!is_int($id) || $id <= 0) {
     http_response_code(404);
     exit;
@@ -301,7 +380,7 @@ try {
     $stmt = db()->prepare('SELECT * FROM items WHERE id = :id LIMIT 1');
     $stmt->execute([':id' => $id]);
     $item = $stmt->fetch(PDO::FETCH_ASSOC);
-} catch (Throwable $e) {
+} catch (Throwable) {
     error_log('[social-image] item lookup failed');
     $item = false;
 }
@@ -314,6 +393,11 @@ $cacheDir = dirname(__DIR__) . '/storage/cache/social-images';
 if (!is_dir($cacheDir)) {
     @mkdir($cacheDir, 0755, true);
 }
+if (!is_dir($cacheDir) || !is_writable($cacheDir)) {
+    http_response_code(503);
+    exit;
+}
+
 $base = $cacheDir . '/' . $id;
 $metaPath = $base . '.json';
 $errorPath = $base . '.error';
@@ -340,12 +424,11 @@ if (is_file($errorPath) && (time() - (int)@filemtime($errorPath)) < PCF_SOCIAL_I
 }
 
 $lockPath = $base . '.lock';
-$lock = is_dir($cacheDir) ? @fopen($lockPath, 'c') : false;
+$lock = @fopen($lockPath, 'c');
 if (is_resource($lock)) {
     @flock($lock, LOCK_EX);
 }
 
-// Another request may have populated the cache while this one waited.
 if (is_file($metaPath)) {
     $decoded = json_decode((string)@file_get_contents($metaPath), true);
     if (is_array($decoded)) {
@@ -384,7 +467,12 @@ $bytes = (string)$fetched['bytes'];
 $ext = pcf_social_image_extension($type);
 $fileName = $id . '.' . $ext;
 $cachePath = $cacheDir . '/' . $fileName;
-$tmpPath = $cachePath . '.tmp-' . bin2hex(random_bytes(4));
+try {
+    $suffix = bin2hex(random_bytes(4));
+} catch (Throwable) {
+    $suffix = str_replace('.', '', uniqid('', true));
+}
+$tmpPath = $cachePath . '.tmp-' . $suffix;
 
 $stored = @file_put_contents($tmpPath, $bytes, LOCK_EX) !== false && @rename($tmpPath, $cachePath);
 if (!$stored) {
