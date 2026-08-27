@@ -82,6 +82,12 @@ if (str_starts_with($ogImage, '//')) {
 } elseif ($ogImage !== '' && !str_starts_with($ogImage, 'http://') && !str_starts_with($ogImage, 'https://')) {
     $ogImage = asset_url($ogImage);
 }
+if ($ogImage !== '' && $ogType === 'product' && isset($item) && is_array($item)) {
+    $socialImageItemId = (int)($item['id'] ?? 0);
+    if ($socialImageItemId > 0) {
+        $ogImage = public_url('social-image.php') . '?id=' . rawurlencode((string)$socialImageItemId) . '&v=2';
+    }
+}
 $jsonLdText = isset($jsonLd) && is_string($jsonLd) && $jsonLd !== '' ? $jsonLd : '';
 $relPrevHref = isset($relPrev) && is_string($relPrev) && $relPrev !== '' ? $relPrev : '';
 $relNextHref = isset($relNext) && is_string($relNext) && $relNext !== '' ? $relNext : '';
