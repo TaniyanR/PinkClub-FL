@@ -85,6 +85,8 @@ if (str_starts_with($ogImage, '//')) {
 if ($ogImage !== '' && $ogType === 'product' && isset($item) && is_array($item)) {
     $socialImageItemId = (int)($item['id'] ?? 0);
     if ($socialImageItemId > 0) {
+        // Version the card image URL when the fetcher changes so social crawlers
+        // do not reuse a previously cached failed image response.
         $ogImage = public_url('social-image.php') . '?id=' . rawurlencode((string)$socialImageItemId) . '&v=2';
     }
 }
