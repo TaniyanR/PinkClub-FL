@@ -82,13 +82,22 @@ if (str_starts_with($ogImage, '//')) {
 } elseif ($ogImage !== '' && !str_starts_with($ogImage, 'http://') && !str_starts_with($ogImage, 'https://')) {
     $ogImage = asset_url($ogImage);
 }
-if ($ogImage !== '' && $ogType === 'product' && isset($item) && is_array($item)) {
-    $socialImageItemId = (int)($item['id'] ?? 0);
-    if ($socialImageItemId > 0) {
-        $ogImage = public_url('social-image.php') . '?id=' . rawurlencode((string)$socialImageItemId) . '&v=2';
-    }
+$headerScriptName = basename((string)($_SERVER['SCRIPT_NAME'] ?? ''));
+$socialImageItemId = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+if ($headerScriptName === 'item.php' && is_int($socialImageItemId) && $socialImageItemId > 0) {
+    $ogImage = public_url('social-image.php') . '?id=' . rawurlencode((string)$socialImageItemId) . '&v=3';
 }
 $jsonLdText = isset($jsonLd) && is_string($jsonLd) && $jsonLd !== '' ? $jsonLd : '';
+if ($ogImage !== '' && $jsonLdText !== '') {
+    $jsonLdData = json_decode($jsonLdText, true);
+    if (is_array($jsonLdData) && (string)($jsonLdData['@type'] ?? '') === 'Product') {
+        $jsonLdData['image'] = $ogImage;
+        $encodedJsonLd = json_encode($jsonLdData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP);
+        if (is_string($encodedJsonLd)) {
+            $jsonLdText = $encodedJsonLd;
+        }
+    }
+}
 $relPrevHref = isset($relPrev) && is_string($relPrev) && $relPrev !== '' ? $relPrev : '';
 $relNextHref = isset($relNext) && is_string($relNext) && $relNext !== '' ? $relNext : '';
 ?>

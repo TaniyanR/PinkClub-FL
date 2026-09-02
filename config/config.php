@@ -9,14 +9,6 @@ function normalize_configured_base_url(string $value): string
         return '';
     }
 
-    // Strip common entry points and folders if someone accidentally sets BASE_URL to them.
-    // Examples:
-    // - https://example.com/index.php            => https://example.com
-    // - https://example.com/public/index.php     => https://example.com
-    // - https://example.com/admin               => https://example.com
-    // - https://example.com/admin/index.php      => https://example.com
-    // - https://example.com/public              => https://example.com
-    // - https://example.com/login0718.php        => https://example.com
     $normalized = preg_replace(
         '#/(index\.php|login\.php|login0718\.php|admin/login\.php|admin(?:/index\.php)?|public(?:/index\.php)?)/*$#i',
         '',
@@ -45,13 +37,6 @@ function normalize_configured_base_url(string $value): string
 
 $configuredBaseUrl = normalize_configured_base_url((string)getenv('BASE_URL'));
 
-/**
- * Resolve application base path from the current script location.
- *
- * Examples:
- * - /pinkclub-fanza/public/index.php => /pinkclub-fanza
- * - /pinkclub-fanza/admin/index.php  => /pinkclub-fanza
- */
 function detect_base_path(string $scriptName): string
 {
     $normalized = str_replace('\\', '/', $scriptName);
@@ -81,11 +66,6 @@ function detect_base_path(string $scriptName): string
     return $normalized;
 }
 
-/**
- * Some servers expose SCRIPT_NAME as `/index.php` even when the app runs from a
- * subdirectory (e.g. `/pinkclub-fanza/public/`). In that case infer the base
- * path from REQUEST_URI.
- */
 function detect_base_path_from_request_uri(string $requestUri): string
 {
     $path = (string)parse_url($requestUri, PHP_URL_PATH);
@@ -116,12 +96,6 @@ function detect_base_path_from_request_uri(string $requestUri): string
     return $normalized;
 }
 
-/**
- * If BASE_URL is configured without a path (e.g. https://example.com),
- * and we detected the app is running under a subdirectory (e.g. /pinkclub-fanza),
- * append the detected path. If BASE_URL already contains a non-root path,
- * do not modify it.
- */
 function apply_detected_path_to_base_url(
     string $configuredUrl,
     string $detectedPath
@@ -147,14 +121,6 @@ function apply_detected_path_to_base_url(
     return $trimmed . $detectedPath;
 }
 
-/**
- * Return a syntactically safe authority for generated absolute URLs.
- *
- * HTTP_HOST is controlled by the request and must not be copied verbatim into
- * canonical URLs, redirects, or the sitemap. BASE_URL remains the preferred
- * production source; this fallback only accepts DNS names, IPv4 addresses and
- * bracketed IPv6 addresses with an optional numeric port.
- */
 function normalize_request_host(string $host): string
 {
     $host = trim($host);
@@ -215,8 +181,9 @@ function normalize_request_host(string $host): string
 
 /**
  * Build a safe fallback URL when BASE_URL is not configured.
- * Production URLs never reflect an arbitrary Host header. Localhost remains
- * dynamic so XAMPP/subdirectory development continues to work.
+ * Production URLs never reflect an arbitrary Host header. Localhost and the
+ * explicitly trusted staging host remain dynamic so tests do not redirect to
+ * production while Host-header injection protection stays intact.
  */
 function trusted_fallback_base_url(string $detectedPath): string
 {
@@ -225,12 +192,13 @@ function trusted_fallback_base_url(string $detectedPath): string
     $host = is_array($parsed) ? strtolower(trim((string)($parsed['host'] ?? ''), '[]')) : '';
     $port = is_array($parsed) && isset($parsed['port']) ? (int)$parsed['port'] : null;
     $isLocal = in_array($host, ['localhost', '127.0.0.1', '::1'], true);
+    $isTrustedStaging = $host === 'pcflight.bichi.xyz';
 
-    if ($isLocal) {
+    if ($isLocal || $isTrustedStaging) {
         $requestScheme = strtolower(trim((string)($_SERVER['REQUEST_SCHEME'] ?? '')));
-        $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-            || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
-        $scheme = $requestScheme === 'https' || $isHttps ? 'https' : 'http';
+        $forwardedProto = strtolower(trim(explode(',', (string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0] ?? ''));
+        $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+        $scheme = ($requestScheme === 'https' || $forwardedProto === 'https' || $isHttps) ? 'https' : 'http';
         $displayHost = $host === '::1' ? '[::1]' : $host;
         if ($port !== null && $port >= 1 && $port <= 65535) {
             $displayHost .= ':' . $port;
