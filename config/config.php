@@ -192,7 +192,7 @@ function trusted_fallback_base_url(string $detectedPath): string
     $host = is_array($parsed) ? strtolower(trim((string)($parsed['host'] ?? ''), '[]')) : '';
     $port = is_array($parsed) && isset($parsed['port']) ? (int)$parsed['port'] : null;
     $isLocal = in_array($host, ['localhost', '127.0.0.1', '::1'], true);
-    $isTrustedStaging = $host === 'pinkclubfl.bichi.xyz';
+    $isTrustedStaging = $host === 'pcflight.bichi.xyz';
 
     if ($isLocal || $isTrustedStaging) {
         $requestScheme = strtolower(trim((string)($_SERVER['REQUEST_SCHEME'] ?? '')));
