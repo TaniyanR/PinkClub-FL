@@ -4,6 +4,9 @@ declare(strict_types=1);
 require_once __DIR__ . '/_bootstrap.php';
 
 header('X-Robots-Tag: noindex, nofollow', true);
+// This controlled redirect is the only endpoint that exposes the full referrer
+// to FANZA or a registered partner for affiliate/reciprocal-link attribution.
+header('Referrer-Policy: unsafe-url', true);
 
 $to = trim((string)($_GET['to'] ?? ''));
 $ref = trim((string)($_GET['ref'] ?? ''));

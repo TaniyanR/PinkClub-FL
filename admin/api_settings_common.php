@@ -115,9 +115,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $id = (int)post('row_id', 0);
             if ($id > 0) {
                 if ($apiType === 'items') {
+                    require_once __DIR__ . '/../lib/search_lifecycle.php';
+                    pcf_item_mark_gone($id, '管理画面で商品を削除');
                     $deleteStmt = db()->prepare('DELETE FROM items WHERE id = :id');
                     $deleteStmt->execute([':id' => $id]);
-                    $message = '商品を削除しました（商品ページで使用する画像情報を含む）。';
+                    $message = '商品を削除し、掲載終了（410）として記録しました。';
                 } else {
                     db()->prepare('DELETE FROM ' . $target['table'] . ' WHERE ' . $target['id_column'] . ' = :id')->execute([':id' => $id]);
                     $message = $target['label'] . 'を削除しました。';

@@ -64,6 +64,9 @@ function pcf_session_is_required(): bool
 if (session_status() !== PHP_SESSION_ACTIVE) {
     $sessionLifetime = (int)($config['security']['session_lifetime'] ?? 86400);
     ini_set('session.gc_maxlifetime', (string)$sessionLifetime);
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.use_only_cookies', '1');
+    ini_set('session.use_trans_sid', '0');
     session_name($config['security']['session_name'] ?? 'pinkclub_fanza_session');
     $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
         || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
@@ -89,6 +92,12 @@ if (!headers_sent()) {
     header('X-Frame-Options: SAMEORIGIN');
     header('Referrer-Policy: strict-origin-when-cross-origin');
     header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
+
+    $headerHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
+    if ($headerHttps) {
+        header('Strict-Transport-Security: max-age=31536000');
+    }
 
     $requestPath = (string)(parse_url((string)($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH) ?: '/');
     $scriptName = basename((string)($_SERVER['SCRIPT_NAME'] ?? ''));

@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/../lib/repository.php';
 require_once __DIR__ . '/../lib/public_rankings.php';
+require_once __DIR__ . '/../lib/search_lifecycle.php';
 require_once __DIR__ . '/partials/public_ui.php';
 
 function item_normalize_movie_url(string $url): string
@@ -257,6 +258,9 @@ if ($contentId === '' && $cid !== '') {
 
 $item = false;
 try {
+    if (($id > 0 || $contentId !== '') && pcf_item_is_gone($id, $contentId)) {
+        pcf_search_error(410);
+    }
     if ($id > 0) {
         $stmt = db()->prepare('SELECT * FROM items WHERE id = ? AND ' . items_front_release_where());
         $stmt->execute([$id]);
@@ -273,8 +277,9 @@ try {
     } elseif ($contentId !== '') {
         $item = fetch_item_by_content_id($contentId);
     }
-} catch (Throwable) {
-    $item = false;
+} catch (Throwable $e) {
+    error_log('Item lookup failed: ' . $e->getMessage());
+    pcf_search_error(503);
 }
 
 if (!$item) {
@@ -679,7 +684,7 @@ require __DIR__ . '/partials/header.php';
       <div class="pcf-item-sample-thumbs" style="width:392px; max-width:100%; height:480px; overflow:hidden;"><div style="display:grid; grid-template-rows:repeat(6, 72px); grid-auto-flow:column; grid-auto-columns:92px; gap:8px; align-content:start;">
         <?php foreach ($sampleImagesSmallLargeMap as $i => $imagePair): ?>
           <a href="<?= e((string)$imagePair['large']) ?>" class="pcf-image-viewer-trigger" data-image-index="<?= e((string)$i) ?>" style="display:block;">
-            <img src="<?= e((string)$imagePair['small']) ?>" alt="サンプル画像 <?= e((string)($i + 1)) ?>" loading="lazy" style="display:block; width:100%; height:72px; object-fit:contain;">
+            <img src="<?= e((string)$imagePair['small']) ?>" alt="サンプル画像 <?= e((string)($i + 1)) ?>" width="92" height="72" loading="lazy" decoding="async" style="display:block; width:100%; height:72px; object-fit:contain;">
           </a>
         <?php endforeach; ?>
       </div></div>
@@ -695,7 +700,7 @@ require __DIR__ . '/partials/header.php';
     <div class="pcf-item-main__media" style="width:min(100%, 620px);">
       <?php if ($packageImage !== ''): ?>
       <a href="<?= e($packageImage) ?>" target="_blank" rel="noopener noreferrer">
-        <img class="pcf-detail__package" data-package-image="1" src="<?= e($packageImage) ?>" alt="<?= e((string)($item['title'] ?? '')) ?>" style="display:block; width:100%; height:auto;">
+        <img class="pcf-detail__package" data-package-image="1" src="<?= e($packageImage) ?>" alt="<?= e((string)($item['title'] ?? '')) ?>" width="620" height="877" decoding="async" fetchpriority="high" style="display:block; width:100%; height:auto;">
       </a>
       <?php endif; ?>
       <?php if ($desc !== ''): ?><p><?= nl2br(e($desc)) ?></p><?php endif; ?>
@@ -763,7 +768,7 @@ require __DIR__ . '/partials/header.php';
   <button type="button" data-image-close="1" style="position:absolute; top:12px; right:16px; color:#fff; background:transparent; border:0; font-size:40px; line-height:1; cursor:pointer;">×</button>
   <div style="max-width:1200px; margin:26px auto 0; padding:0 18px;">
     <div style="display:flex; align-items:center; justify-content:center; min-height:66vh;">
-      <img id="pcf-image-viewer-main" src="" alt="サンプル画像" style="max-width:100%; max-height:66vh; object-fit:contain;">
+      <img id="pcf-image-viewer-main" src="" alt="サンプル画像" width="960" height="720" decoding="async" style="max-width:100%; max-height:66vh; width:auto; height:auto; object-fit:contain;">
     </div>
     <div id="pcf-image-viewer-thumbs" style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:12px;"></div>
   </div>

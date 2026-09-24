@@ -46,15 +46,32 @@ function pcf_public_page_cache_start(int $ttlSeconds = 120): void
         'ranking_refresh.php',
         'link_apply.php',
     ];
+    // The page cache stores HTML bodies only. Dynamic non-HTML endpoints must
+    // execute on every request so their Content-Type and freshness stay valid.
+    $cacheBypassScripts = [
+        'feed.php',
+        'feed-10.php',
+        'feed-60.php',
+        'feed-free-10.php',
+        'feed-free-60.php',
+        'rss.php',
+        'sample_images.php',
+        'social-image.php',
+        'indexnow-key.php',
+    ];
     $pageSlug = trim((string)($_GET['slug'] ?? ''));
     $isContactPage = $scriptName === 'page.php' && in_array($pageSlug, ['que', 'contact'], true);
     $isExcludedScript = in_array($scriptName, $excludedScripts, true) || $isContactPage;
+    $mustBypassCache = in_array($scriptName, $cacheBypassScripts, true);
+    $isTrackedLinkVisit = $scriptName === 'links.php' && (int)($_GET['from'] ?? 0) > 0;
 
     if (
         str_contains($requestPath, '/admin/')
         || str_contains($requestPath, '/api/')
         || $scriptName === 'page_view_beacon.php'
         || $isExcludedScript
+        || $mustBypassCache
+        || $isTrackedLinkVisit
         || isset($_GET['pcf_nocache'])
     ) {
         if ($isExcludedScript) {
@@ -82,6 +99,12 @@ function pcf_public_page_cache_start(int $ttlSeconds = 120): void
     $cacheAuthority = $cacheHost . ($cachePort !== null ? ':' . $cachePort : '');
 
     $variant = pcf_public_request_is_mobile() ? 'sp' : 'pc';
+    // A tombstone/restore action rotates this generation token so a cached
+    // product page cannot remain 200 after its search lifecycle changes.
+    $generationFile = dirname(__DIR__) . '/storage/cache/search-generation';
+    if (is_file($generationFile)) {
+        $variant .= '|' . (string)@file_get_contents($generationFile);
+    }
     $cacheQuery = [];
     parse_str((string)(parse_url($requestUri, PHP_URL_QUERY) ?? ''), $cacheQuery);
     $allowedCacheQueryKeys = [
@@ -175,7 +198,7 @@ function pcf_public_page_cache_start(int $ttlSeconds = 120): void
     header('X-PCF-Page-Cache: MISS');
     ob_start();
 
-    register_shutdown_function(static function () use ($cacheFile, $cacheDirectory, $method, $lockHandle): void {
+    register_shutdown_function(static function () use ($cacheFile, $cacheDirectory, $method, $scriptName, $lockHandle): void {
         if (ob_get_level() < 1) {
             if (is_resource($lockHandle)) {
                 @flock($lockHandle, LOCK_UN);
@@ -199,6 +222,11 @@ function pcf_public_page_cache_start(int $ttlSeconds = 120): void
         }
 
         if ($status === 200 && $content !== '') {
+            if ($scriptName === 'item.php' && str_contains($content, '</body>')) {
+                $beaconUrl = function_exists('public_url') ? public_url('page_view_beacon.php') : 'page_view_beacon.php';
+                $beaconScript = '<script>(()=>{try{const p=new URLSearchParams(location.search);const b=new URLSearchParams();for(const k of ["id","content_id","cid"]){const v=p.get(k);if(v)b.set(k,v);}if([...b].length){const u=' . json_encode($beaconUrl, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . ';if(!(navigator.sendBeacon&&navigator.sendBeacon(u,b))&&window.fetch){fetch(u,{method:"POST",body:b,credentials:"same-origin",keepalive:true}).catch(()=>{});}}}catch(e){}})();</script>';
+                $content = str_replace('</body>', $beaconScript . '</body>', $content);
+            }
             try {
                 $suffix = bin2hex(random_bytes(4));
             } catch (Throwable) {

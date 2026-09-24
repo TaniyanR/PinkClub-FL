@@ -624,7 +624,7 @@ if (!function_exists('pcf_render_item_card')) {
         echo '<article class="pcf-dm-card">';
         echo '<a class="pcf-dm-card__image-link" href="' . e($itemUrl) . '">';
         if ($imageUrl !== '') {
-            echo '<img class="pcf-dm-card__image" src="' . e($imageUrl) . '" alt="' . e($title) . '" loading="lazy">';
+            echo '<img class="pcf-dm-card__image" src="' . e($imageUrl) . '" alt="' . e($title) . '" width="240" height="170" loading="lazy" decoding="async">';
         } else {
             echo '<div class="pcf-dm-card__no-image">No Image</div>';
         }

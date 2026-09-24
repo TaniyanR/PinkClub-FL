@@ -25,7 +25,7 @@ require __DIR__ . '/partials/header.php';
         <h1><?php echo e($article['title']); ?></h1>
         <div class="meta">発売日: <?php echo e($article['release_date'] ?? '未設定'); ?></div>
         <?php if (!empty($article['image_url'])): ?>
-            <p><img src="<?php echo e($article['image_url']); ?>" alt="<?php echo e($article['title']); ?>"></p>
+            <p><img src="<?php echo e($article['image_url']); ?>" alt="<?php echo e($article['title']); ?>" loading="lazy" decoding="async"></p>
         <?php endif; ?>
         <?php if (!empty($article['description'])): ?>
             <p><?php echo nl2br(e($article['description'])); ?></p>

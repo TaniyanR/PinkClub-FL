@@ -61,6 +61,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ':is_published' => post('is_published', '0') === '1' ? 1 : 0,
         ':id' => $id,
     ]);
+    $savedPage = db()->prepare('SELECT slug FROM fixed_pages WHERE id = ? LIMIT 1');
+    $savedPage->execute([$id]);
+    $savedSlug = $savedPage->fetchColumn();
+    if (is_string($savedSlug)) {
+        require_once __DIR__ . '/../lib/indexnow.php';
+        pcf_indexnow_enqueue(public_url('page.php') . '?slug=' . rawurlencode($savedSlug));
+    }
     $message = '固定ページを更新しました。';
 }
 

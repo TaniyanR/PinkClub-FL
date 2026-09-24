@@ -23,6 +23,7 @@ $faviconType = strtolower((string)pathinfo($faviconPath, PATHINFO_EXTENSION)) ==
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="rating" content="adult">
     <meta name="robots" content="noindex, nofollow">
     <title><?php echo e($fullTitle); ?></title>
     <?php if ($faviconUrl !== '') : ?>
