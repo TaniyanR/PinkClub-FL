@@ -403,6 +403,7 @@ $accessRankingMarker = '__PCF_ACCESS_RANKING__';
 $privacyLinkMarker = '__PCF_PRIVACY_LINK__';
 if ($slug === 'about' || $slug === 'privacy-policy') {
     $body = (string)$p['body'];
+    $body = str_replace('[Privacy Policy(URL付き)]ページ', '[Privacy Policy(URL付き)]', $body);
     $body = str_replace(
         [public_url('feed.php'), '/feed.php'],
         [public_url('feed-60.php'), '/feed-60.php'],
