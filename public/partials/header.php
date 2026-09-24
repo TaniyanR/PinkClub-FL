@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_helpers.php';
+require_once __DIR__ . '/../../lib/seo_metadata.php';
 
 $pageType = function_exists('ad_current_page_type') ? ad_current_page_type() : 'home';
 $safeTextSetting = static function (string $key, string $default = ''): string {
@@ -67,6 +68,8 @@ $descriptionText = (string)($pageDescription ?? '');
 if ($descriptionText === '') {
     $descriptionText = $tagline;
 }
+$headerScriptName = basename((string)($_SERVER['SCRIPT_NAME'] ?? ''));
+$descriptionText = pcf_meta_description($descriptionText, $titleBaseText !== '' ? $titleBaseText : $siteName, $headerScriptName, $siteName);
 $canonicalHref = isset($canonicalUrl) && is_string($canonicalUrl) && $canonicalUrl !== '' ? $canonicalUrl : '';
 $ogUrl = isset($ogUrl) && is_string($ogUrl) && $ogUrl !== '' ? $ogUrl : ($canonicalHref !== '' ? $canonicalHref : public_url(basename((string)($_SERVER['SCRIPT_NAME'] ?? 'index.php'))));
 $ogType = isset($ogType) && is_string($ogType) && $ogType !== '' ? $ogType : 'website';
@@ -82,7 +85,6 @@ if (str_starts_with($ogImage, '//')) {
 } elseif ($ogImage !== '' && !str_starts_with($ogImage, 'http://') && !str_starts_with($ogImage, 'https://')) {
     $ogImage = asset_url($ogImage);
 }
-$headerScriptName = basename((string)($_SERVER['SCRIPT_NAME'] ?? ''));
 $socialImageItemId = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
 if ($headerScriptName === 'item.php' && is_int($socialImageItemId) && $socialImageItemId > 0) {
     $ogImage = public_url('social-image.php') . '?id=' . rawurlencode((string)$socialImageItemId) . '&v=3';
@@ -106,6 +108,7 @@ $relNextHref = isset($relNext) && is_string($relNext) && $relNext !== '' ? $relN
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="rating" content="adult">
   <title><?= e($titleText) ?></title>
   <?php if ($descriptionText !== ''): ?><meta name="description" content="<?= e($descriptionText) ?>"><?php endif; ?>
   <?php if (isset($robotsMeta) && is_string($robotsMeta) && trim($robotsMeta) !== ''): ?><meta name="robots" content="<?= e(trim($robotsMeta)) ?>"><?php endif; ?>
@@ -182,7 +185,7 @@ $relNextHref = isset($relNext) && is_string($relNext) && $relNext !== '' ? $relN
     <div class="header-left site-header__left">
       <?php if ($logoPath !== ''): ?>
         <div class="site-logo-wrap">
-          <a href="<?= e(public_url('')) ?>" class="site-title-link"><img src="<?= e($logoUrl) ?>" alt="<?= e($siteName) ?>" class="site-logo"></a>
+          <a href="<?= e(public_url('')) ?>" class="site-title-link"><img src="<?= e($logoUrl) ?>" alt="<?= e($siteName) ?>" class="site-logo" decoding="async"></a>
         </div>
       <?php else: ?>
         <div class="site-title"><a href="<?= e(public_url('')) ?>" class="site-title-link"><?= e($siteName) ?></a></div>

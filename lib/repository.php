@@ -187,7 +187,12 @@ function ensure_items_item_source_column(): void
 function items_front_release_where(string $alias = ''): string
 {
     $prefix = $alias !== '' ? $alias . '.' : 'items.';
-    return '(' . $prefix . 'release_date IS NULL OR ' . $prefix . 'release_date = "" OR ' . $prefix . 'release_date <= CURDATE())';
+    $where = '(' . $prefix . 'release_date IS NULL OR ' . $prefix . 'release_date = "" OR ' . $prefix . 'release_date <= CURDATE())';
+    if (db_table_exists('item_tombstones')) {
+        $outer = $alias !== '' ? $alias : 'items';
+        $where .= ' AND NOT EXISTS (SELECT 1 FROM item_tombstones gone WHERE gone.item_id = ' . $outer . '.id)';
+    }
+    return $where;
 }
 
 function items_product_source_where(string $alias = ''): string
@@ -1056,7 +1061,8 @@ function upsert_item(array $item): array
             ':updated_at'           => $now,
             ':id'                   => (int)$existingId,
         ]);
-
+        require_once __DIR__ . '/indexnow.php';
+        pcf_indexnow_item_changed((int)$existingId);
         return ['id' => (int)$existingId, 'status' => 'updated'];
     }
 
@@ -1093,7 +1099,10 @@ function upsert_item(array $item): array
         ':updated_at'           => $now,
     ]);
 
-    return ['id' => (int)$pdo->lastInsertId(), 'status' => 'inserted'];
+    $insertedId = (int)$pdo->lastInsertId();
+    require_once __DIR__ . '/indexnow.php';
+    pcf_indexnow_item_changed($insertedId);
+    return ['id' => $insertedId, 'status' => 'inserted'];
 }
 
 function upsert_actress(array $actress): string

@@ -254,8 +254,10 @@ function installer_normalize_settings_table(PDO $pdo, string $stepLabel): void
         return;
     }
 
-    $tmpTable = 'settings_kv_tmp';
-    $pdo->exec('DROP TABLE IF EXISTS `' . $tmpTable . '`');
+    // Use unique names so an interrupted earlier setup and its backup are
+    // preserved instead of being deleted by a later retry.
+    $suffix = bin2hex(random_bytes(8));
+    $tmpTable = 'settings_kv_tmp_' . $suffix;
     $pdo->exec('CREATE TABLE `' . $tmpTable . '` (setting_key VARCHAR(191) PRIMARY KEY, setting_value LONGTEXT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
 
     $pairs = [
@@ -293,10 +295,14 @@ function installer_normalize_settings_table(PDO $pdo, string $stepLabel): void
         $pdo->exec($sql);
     }
 
-    $backup = 'settings_legacy_backup';
-    $pdo->exec('DROP TABLE IF EXISTS `' . $backup . '`');
+    $backup = 'settings_legacy_backup_' . $suffix;
     $pdo->exec('RENAME TABLE settings TO `' . $backup . '`, `' . $tmpTable . '` TO settings');
-    installer_log('step=' . $stepLabel . ' settings_table_normalized=true');
+    if (function_exists('site_settings_columns_reset')) {
+        site_settings_columns_reset();
+    } else {
+        unset($GLOBALS['__site_settings_columns']);
+    }
+    installer_log('step=' . $stepLabel . ' settings_table_normalized=true backup=' . $backup);
 }
 
 function installer_ensure_admin_user(PDO $pdo, string $stepLabel): bool
@@ -309,6 +315,7 @@ function installer_ensure_admin_user(PDO $pdo, string $stepLabel): bool
     $initialPassword = substr(str_replace(['+', '/', '='], '', base64_encode(random_bytes(18))), 0, 18);
     $insert = $pdo->prepare('INSERT INTO admins (username, password_hash) VALUES (:username, :password_hash)');
     $insert->execute(['username' => 'admin', 'password_hash' => password_hash($initialPassword, PASSWORD_DEFAULT)]);
+    $GLOBALS['installer_initial_credentials'] = ['username' => 'admin', 'password' => $initialPassword];
     if (session_status() === PHP_SESSION_ACTIVE) {
         $_SESSION['installer_initial_password'] = $initialPassword;
     }
@@ -378,6 +385,7 @@ function installer_run(): array
     installer_log('step=start');
     $result = ['success'=>false,'steps'=>[],'error'=>null,'error_detail'=>null,'failed_sql'=>null,'error_summary'=>null,'log_tail'=>null];
     $currentStep = 'server_connection';
+    unset($GLOBALS['installer_initial_credentials']);
     $step = static function (string $id, bool $ok, string $message = '') use (&$result): void {
         $result['steps'][] = ['id'=>$id,'status'=>$ok?'ok':'ng','message'=>$message];
     };
@@ -425,6 +433,9 @@ function installer_run(): array
         $step('completion_check', true);
         installer_log('step=completed status=ok');
         $result['success'] = true;
+        if (isset($GLOBALS['installer_initial_credentials']) && is_array($GLOBALS['installer_initial_credentials'])) {
+            $result['initial_credentials'] = $GLOBALS['installer_initial_credentials'];
+        }
     } catch (Throwable $e) {
         installer_log_exception($currentStep, $e);
         installer_record_error_summary($currentStep, $e);

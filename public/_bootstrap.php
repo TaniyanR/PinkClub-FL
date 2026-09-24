@@ -25,16 +25,7 @@ $longCachePublicPages = [
     'page.php',
 ];
 $publicPageCacheTtl = in_array($publicScriptName, $longCachePublicPages, true) ? 600 : 120;
-$socialCardUserAgent = (string)($_SERVER['HTTP_USER_AGENT'] ?? '');
-$isSocialCardCrawler = $publicScriptName === 'item.php'
-    && $socialCardUserAgent !== ''
-    && preg_match('/(?:Twitterbot|facebookexternalhit|Discordbot|Slackbot|LinkedInBot)/i', $socialCardUserAgent) === 1;
-if ($isSocialCardCrawler) {
-    header('Cache-Control: public, max-age=0, must-revalidate');
-    header('X-PCF-Page-Cache: BYPASS-SOCIAL');
-} else {
-    pcf_public_page_cache_start($publicPageCacheTtl);
-}
+pcf_public_page_cache_start($publicPageCacheTtl);
 
 $readOnlyPublicPages = [
     'index.php',

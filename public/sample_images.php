@@ -130,6 +130,7 @@ if ($wantsJson) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="rating" content="adult">
   <meta name="robots" content="noindex, nofollow">
   <title><?= e((string)$item['title']) ?> - サンプル画像</title>
   <style>
@@ -165,7 +166,7 @@ if ($wantsJson) {
     <?php else: ?>
       <?php foreach ($images as $index => $image): ?>
         <div class="sample-frame">
-          <img src="<?= e($image) ?>" alt="サンプル画像 <?= e((string)($index + 1)) ?>">
+          <img src="<?= e($image) ?>" alt="サンプル画像 <?= e((string)($index + 1)) ?>" loading="lazy" decoding="async">
         </div>
       <?php endforeach; ?>
     <?php endif; ?>

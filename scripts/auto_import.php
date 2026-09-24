@@ -51,6 +51,8 @@ function main(): int
         rss_refresh_stale_sources(2, 1800, 2);
         analytics_maybe_cleanup_old_logs(730, 2000, true);
         pcf_resource_cleanup(db(), 500);
+        require_once __DIR__ . '/../lib/indexnow.php';
+        pcf_indexnow_dispatch();
         $status = (string)($result['status'] ?? 'unknown');
         $syncedCount = (int)($result['synced_count'] ?? 0);
         $message = trim((string)($result['message'] ?? ''));
