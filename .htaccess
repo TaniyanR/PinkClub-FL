@@ -18,6 +18,7 @@ RewriteRule ^public/ - [L]
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
+RewriteCond %{REQUEST_URI} !^/indexnow-key\.php$
 RewriteRule ^(.*)$ public/$1 [L]
 
 <IfModule mod_expires.c>
