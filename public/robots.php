@@ -13,13 +13,10 @@ echo "Disallow: /admin/\n";
 echo "Disallow: /public/forgot_password.php\n";
 echo "Disallow: /public/reset_password.php\n";
 echo "Disallow: /public/setup_check.php\n";
-echo "Disallow: /search.php\n";
-echo "Disallow: /public/search.php\n";
-echo "Disallow: /item.php?*rank_period=\n";
-echo "Disallow: /public/item.php?*rank_period=\n";
 echo "Disallow: /out.php?to=\n";
 echo "Disallow: /public/out.php?to=\n";
-echo "Crawl-delay: 10\n";
+echo "Disallow: /vr_affiliate.php\n";
+echo "Disallow: /public/vr_affiliate.php\n";
 if ($base !== '') {
     echo "Sitemap: {$base}/sitemap.php\n";
 }

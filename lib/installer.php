@@ -317,7 +317,7 @@ function installer_ensure_admin_user(PDO $pdo, string $stepLabel): bool
     $insert->execute(['username' => 'admin', 'password_hash' => password_hash($initialPassword, PASSWORD_DEFAULT)]);
     $GLOBALS['installer_initial_credentials'] = ['username' => 'admin', 'password' => $initialPassword];
     if (session_status() === PHP_SESSION_ACTIVE) {
-        $_SESSION['installer_initial_password'] = $initialPassword;
+        $_SESSION['installer_initial_credentials'] = $GLOBALS['installer_initial_credentials'];
     }
     installer_log('step=' . $stepLabel . ' admin_created=true');
     return true;

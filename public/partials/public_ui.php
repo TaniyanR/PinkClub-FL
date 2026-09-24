@@ -635,7 +635,7 @@ if (!function_exists('pcf_render_item_card')) {
         $releaseDateLabel = $releaseDateRaw !== '' ? '発売日：' . e(format_date($releaseDateRaw)) : '発売日';
         echo '<span style="display:block;width:100%;padding:12px 10px;text-align:center;color:#000;background:transparent;border:1px solid #000;border-radius:4px;font-size:14px;font-weight:700;box-sizing:border-box;">' . $releaseDateLabel . '</span>';
         if ($isVrItem && $itemId > 0 && $affiliateUrl !== '') {
-            echo '<a class="pcf-dm-card__button sample-button--enabled" href="' . e(public_url('vr_affiliate.php?id=' . $itemId)) . '" target="_blank" rel="noopener noreferrer sponsored">元サイトで見る</a>';
+            echo '<a class="pcf-dm-card__button sample-button--enabled" href="' . e(public_url('vr_affiliate.php?id=' . $itemId)) . '" target="_blank" rel="noopener sponsored nofollow">元サイトで見る</a>';
         } elseif ($sampleMovieUrl !== '') {
             echo '<button type="button" class="pcf-dm-card__button sample-movie-trigger" data-movie-url="' . e($sampleMovieUrl) . '" data-movie-title="' . e($title) . '">サンプル動画</button>';
         } else {

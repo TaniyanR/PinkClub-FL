@@ -27,6 +27,17 @@ $safeTextSetting = static function (string $key, string $default = ''): string {
 
     return $default;
 };
+$conformEmbeddedHtml = static function (string $html): string {
+    $html = preg_replace('/\s+type\s*=\s*(["\'])text\/javascript\1/i', '', $html) ?? $html;
+
+    return preg_replace_callback('/<img\b[^>]*>/i', static function (array $match): string {
+        $tag = (string)($match[0] ?? '');
+        if ($tag === '' || preg_match('/\balt\s*=/i', $tag) === 1) {
+            return $tag;
+        }
+        return preg_replace('/\s*\/?>$/', ' alt="">', $tag) ?? $tag;
+    }, $html) ?? $html;
+};
 
 $siteName = trim($safeTextSetting('site_name', ''));
 if ($siteName === '') {
@@ -41,28 +52,25 @@ $keywords = trim($safeTextSetting('site.keywords', ''));
 $logoPath = trim($safeTextSetting('site.logo_path', ''));
 $faviconPath = trim($safeTextSetting('site.favicon_path', ''));
 
-$headerAdHtml = trim($safeTextSetting('header_ad_html', ''));
-$customHeadCode = trim($safeTextSetting('site.custom_head_code', ''));
-$customBodyOpenCode = trim($safeTextSetting('site.custom_body_open_code', ''));
+$headerAdHtml = $conformEmbeddedHtml(trim($safeTextSetting('header_ad_html', '')));
+$customHeadCode = $conformEmbeddedHtml(trim($safeTextSetting('site.custom_head_code', '')));
+$customBodyOpenCode = $conformEmbeddedHtml(trim($safeTextSetting('site.custom_body_open_code', '')));
 $titleText = (string)($title ?? $pageTitle ?? $siteName);
 $titleBaseText = trim($titleText);
 $isHomeTitle = $titleBaseText === '' || $titleBaseText === 'トップ' || $titleBaseText === $siteName;
 $titleText = $isHomeTitle ? ($tagline !== '' ? $siteName . ' - ' . $tagline : $siteName) : $titleBaseText . ' | ' . $siteName;
-$logoUrl = $logoPath !== '' ? public_url($logoPath) : '';
-$faviconUrl = '';
-if ($faviconPath !== '') {
-    $faviconRelativePath = ltrim($faviconPath, '/');
-    if (str_starts_with($faviconRelativePath, 'uploads/site_settings/')) {
-        $faviconRelativePath = 'public/' . $faviconRelativePath;
-    }
-    $faviconUrl = public_url($faviconRelativePath);
-    $faviconFile = __DIR__ . '/../' . ltrim($faviconPath, '/');
-    if (is_file($faviconFile)) {
-        $faviconUrl .= (str_contains($faviconUrl, '?') ? '&' : '?') . 'v=' . rawurlencode((string)filemtime($faviconFile));
-    }
-}
+$logoUrl = function_exists('site_media_url_or_legacy')
+    ? site_media_url_or_legacy('logo', $logoPath)
+    : ($logoPath !== '' ? public_url($logoPath) : '');
+$faviconUrl = $faviconPath !== '' ? public_versioned_url($faviconPath) : '';
 $faviconExt = strtolower((string)pathinfo($faviconPath, PATHINFO_EXTENSION));
 $faviconType = $faviconExt === 'png' ? 'image/png' : 'image/x-icon';
+if (function_exists('site_media_meta_get')) {
+    $faviconMedia = site_media_meta_get('favicon');
+    if (is_array($faviconMedia) && trim((string)($faviconMedia['mime_type'] ?? '')) !== '') {
+        $faviconType = trim((string)$faviconMedia['mime_type']);
+    }
+}
 $canRenderAd = function_exists('render_ad');
 $descriptionText = (string)($pageDescription ?? '');
 if ($descriptionText === '') {
@@ -90,10 +98,31 @@ if ($headerScriptName === 'item.php' && is_int($socialImageItemId) && $socialIma
     $ogImage = public_url('social-image.php') . '?id=' . rawurlencode((string)$socialImageItemId) . '&v=3';
 }
 $jsonLdText = isset($jsonLd) && is_string($jsonLd) && $jsonLd !== '' ? $jsonLd : '';
-if ($ogImage !== '' && $jsonLdText !== '') {
+if ($jsonLdText !== '') {
     $jsonLdData = json_decode($jsonLdText, true);
     if (is_array($jsonLdData) && (string)($jsonLdData['@type'] ?? '') === 'Product') {
-        $jsonLdData['image'] = $ogImage;
+        if ($ogImage !== '') {
+            $jsonLdData['image'] = $ogImage;
+        }
+        $offers = $jsonLdData['offers'] ?? null;
+        if (is_array($offers)) {
+            $hasOfferPrice = isset($offers['price']) && is_numeric($offers['price']);
+            $hasSpecificationPrice = isset($offers['priceSpecification']['price']) && is_numeric($offers['priceSpecification']['price']);
+            if (!$hasOfferPrice && !$hasSpecificationPrice) {
+                $priceMin = isset($item) && is_array($item) ? trim((string)($item['price_min'] ?? '')) : '';
+                if ($priceMin !== '' && is_numeric($priceMin) && (float)$priceMin > 0) {
+                    $jsonLdData['offers']['price'] = (float)$priceMin;
+                } else {
+                    unset($jsonLdData['offers']);
+                }
+            }
+        }
+        if (isset($item) && is_array($item)) {
+            $sku = trim((string)($item['content_id'] ?? $item['product_id'] ?? ''));
+            if ($sku !== '') {
+                $jsonLdData['sku'] = $sku;
+            }
+        }
         $encodedJsonLd = json_encode($jsonLdData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP);
         if (is_string($encodedJsonLd)) {
             $jsonLdText = $encodedJsonLd;
@@ -108,6 +137,7 @@ $relNextHref = isset($relNext) && is_string($relNext) && $relNext !== '' ? $relN
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="rating" content="adult">
   <title><?= e($titleText) ?></title>
   <?php if ($descriptionText !== ''): ?><meta name="description" content="<?= e($descriptionText) ?>"><?php endif; ?>
@@ -190,6 +220,7 @@ $relNextHref = isset($relNext) && is_string($relNext) && $relNext !== '' ? $relN
       <?php else: ?>
         <div class="site-title"><a href="<?= e(public_url('')) ?>" class="site-title-link"><?= e($siteName) ?></a></div>
       <?php endif; ?>
+      <div class="site-disclaimer"><strong>18+：当サイトはアダルトサイトで18歳未満の方はご利用出来ません。</strong></div>
       <div class="site-disclaimer"><strong>当サイトはアフィリエイト広告を利用しています。</strong></div>
     </div>
     <div class="header-right site-header__right">

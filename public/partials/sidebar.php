@@ -32,7 +32,8 @@ try {
 }
 
 try {
-    $stmt = db()->query("SELECT ps.id, ps.name, ps.url, COALESCE(ps.show_link, ps.is_enabled, 1) AS show_link FROM partner_sites ps WHERE COALESCE(ps.show_link, ps.is_enabled, 1) = 1 ORDER BY {$orderBy}");
+    $nofollowSelect = db_column_exists('partner_sites', 'rel_nofollow') ? 'ps.rel_nofollow' : '0 AS rel_nofollow';
+    $stmt = db()->query("SELECT ps.id, ps.name, ps.url, COALESCE(ps.show_link, ps.is_enabled, 1) AS show_link, {$nofollowSelect} FROM partner_sites ps WHERE COALESCE(ps.show_link, ps.is_enabled, 1) = 1 ORDER BY {$orderBy}");
     $rows = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
     $seenPartnerUrls = [];
     foreach ($rows as $row) {
@@ -160,7 +161,8 @@ if ($fixedPages === []) {
         <?php else : ?>
             <ul class="sidebar-links sidebar-links--partners">
                 <?php foreach ($partnerLinks as $link) : ?>
-                    <li><a href="<?= e((string)$link['url']) ?>" target="_blank" rel="noopener noreferrer"><?= e((string)$link['name']) ?></a></li>
+                    <?php $partnerRel = ((int)($link['rel_nofollow'] ?? 0) === 1) ? 'noopener nofollow' : 'noopener'; ?>
+                    <li><a href="<?= e((string)$link['url']) ?>" target="_blank" rel="<?= e($partnerRel) ?>"><?= e((string)$link['name']) ?></a></li>
                 <?php endforeach; ?>
             </ul>
         <?php endif; ?>

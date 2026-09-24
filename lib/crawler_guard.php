@@ -26,7 +26,7 @@ function pcf_crawler_guard_is_known_crawler(string $userAgent): bool
         return false;
     }
 
-    return preg_match('/(?:Applebot|GPTBot|Googlebot|bingbot|Slurp|DuckDuckBot|Baiduspider|YandexBot|facebookexternalhit|Twitterbot|AhrefsBot|SemrushBot|MJ12Bot|DotBot|PetalBot|Bytespider|ClaudeBot|Amazonbot|CensysInspect|DataForSeoBot)/i', $userAgent) === 1;
+    return preg_match('/(?:Applebot|GPTBot|OAI-SearchBot|ChatGPT-User|ClaudeBot|Claude-User|PerplexityBot|Perplexity-User|Googlebot|Google-Extended|bingbot|Slurp|DuckDuckBot|Baiduspider|YandexBot|facebookexternalhit|meta-externalagent|Twitterbot|AhrefsBot|SemrushBot|MJ12bot|DotBot|PetalBot|Bytespider|Amazonbot|CCBot|cohere-ai|Diffbot|CensysInspect|DataForSeoBot)/i', $userAgent) === 1;
 }
 
 function pcf_crawler_guard_redirect_rank_period_crawler(string $path): void
