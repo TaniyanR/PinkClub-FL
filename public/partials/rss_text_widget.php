@@ -30,7 +30,7 @@ try {
             <ul class="rss-list">
                 <?php foreach ($items as $item) : ?>
                     <li class="rss-list__item">
-                        <a href="<?php echo e(rss_trade_out_url($item)); ?>" target="_blank" rel="noopener noreferrer"><?php echo e((string)($item['title'] ?? '')); ?></a>
+                        <a href="<?php echo e(rss_trade_out_url($item)); ?>" target="_blank" rel="noopener"><?php echo e((string)($item['title'] ?? '')); ?></a>
                     </li>
                 <?php endforeach; ?>
             </ul>

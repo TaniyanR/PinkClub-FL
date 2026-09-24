@@ -45,6 +45,7 @@ function pcf_public_page_cache_start(int $ttlSeconds = 120): void
         'search.php',
         'ranking_refresh.php',
         'link_apply.php',
+        'deletion_request_submit.php',
     ];
     // The page cache stores HTML bodies only. Dynamic non-HTML endpoints must
     // execute on every request so their Content-Type and freshness stay valid.
@@ -99,6 +100,7 @@ function pcf_public_page_cache_start(int $ttlSeconds = 120): void
     $cacheAuthority = $cacheHost . ($cachePort !== null ? ':' . $cachePort : '');
 
     $variant = pcf_public_request_is_mobile() ? 'sp' : 'pc';
+    $variant .= '|link-rel-v2|site-media-v1|analytics-v2|age-copyright-v1';
     // A tombstone/restore action rotates this generation token so a cached
     // product page cannot remain 200 after its search lifecycle changes.
     $generationFile = dirname(__DIR__) . '/storage/cache/search-generation';

@@ -3,8 +3,8 @@ Disallow: /admin/
 Disallow: /public/forgot_password.php
 Disallow: /public/reset_password.php
 Disallow: /public/setup_check.php
-Disallow: /search.php
-Disallow: /public/search.php
 Disallow: /out.php?to=
 Disallow: /public/out.php?to=
-Crawl-delay: 10
+Disallow: /vr_affiliate.php
+Disallow: /public/vr_affiliate.php
+Sitemap: https://pinkclub-fl.com/sitemap.php

@@ -27,6 +27,15 @@ $longCachePublicPages = [
 $publicPageCacheTtl = in_array($publicScriptName, $longCachePublicPages, true) ? 600 : 120;
 pcf_public_page_cache_start($publicPageCacheTtl);
 
+// Cached responses do not need a DB read. On a cache miss, use the configured
+// common OGP image when the page has not supplied a product-specific image.
+if ((!isset($ogImage) || !is_string($ogImage) || trim($ogImage) === '') && function_exists('site_media_public_url')) {
+    $defaultOgpImage = site_media_public_url('ogp');
+    if ($defaultOgpImage !== '') {
+        $ogImage = $defaultOgpImage;
+    }
+}
+
 $readOnlyPublicPages = [
     'index.php',
     'items.php',
@@ -39,6 +48,7 @@ $readOnlyPublicPages = [
     'sample_images.php',
     'ranking_refresh.php',
     'analytics.php',
+    'analytics_engagement.php',
     'page_view_beacon.php',
     'out.php',
     'vr_affiliate.php',

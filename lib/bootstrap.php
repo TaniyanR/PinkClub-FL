@@ -38,6 +38,7 @@ function pcf_session_is_required(): bool
 
     if (!str_contains($requestPath, '/admin/') && in_array($scriptName, [
         'analytics.php',
+        'analytics_engagement.php',
         'page_view_beacon.php',
         'ranking_refresh.php',
     ], true)) {

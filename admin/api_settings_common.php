@@ -191,7 +191,7 @@ require __DIR__ . '/includes/header.php';
       <?php foreach ($savedRows as $index => $row): ?>
         <tr>
           <td><?= e((string)max(1, $totalRows - $offset - (int)$index)) ?></td>
-          <td><a href="<?= e(public_url('item.php?cid=' . rawurlencode((string)($row['content_id'] ?? '')))) ?>" target="_blank" rel="noopener noreferrer"><?= e((string)($row['row_name'] ?? '')) ?></a></td>
+          <td><a href="<?= e(public_url('item.php?cid=' . rawurlencode((string)($row['content_id'] ?? '')))) ?>" target="_blank" rel="noopener"><?= e((string)($row['row_name'] ?? '')) ?></a></td>
           <td><?= e((string)($row['updated_at'] ?? '')) ?></td>
           <td>
             <form method="post">

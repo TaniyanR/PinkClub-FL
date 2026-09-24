@@ -14,17 +14,28 @@ if (($autoSetup['success'] ?? false) !== true) {
     app_redirect('/public/setup_check.php');
 }
 
-$initialAdminPassword = isset($_SESSION['installer_initial_password'])
-    ? (string)$_SESSION['installer_initial_password']
-    : '';
-unset($_SESSION['installer_initial_password']);
-
 if (auth_user()) {
     app_redirect(ADMIN_HOME_PATH);
 }
 
 $error = null;
 $setupMessage = null;
+$resetSuccess = isset($_SESSION['forgot_password_success']) && is_string($_SESSION['forgot_password_success'])
+    ? $_SESSION['forgot_password_success']
+    : null;
+unset($_SESSION['forgot_password_success']);
+
+$initialCredentials = isset($_SESSION['installer_initial_credentials']) && is_array($_SESSION['installer_initial_credentials'])
+    ? $_SESSION['installer_initial_credentials']
+    : null;
+unset($_SESSION['installer_initial_credentials']);
+if (is_array($initialCredentials)) {
+    $initialUsername = trim((string)($initialCredentials['username'] ?? ''));
+    $initialPassword = (string)($initialCredentials['password'] ?? '');
+    if ($initialUsername === '' || $initialPassword === '') {
+        $initialCredentials = null;
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_verify(post('_csrf'))) {
@@ -50,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 csrf_token();
 $faviconPath = trim(site_setting_get('site.favicon_path', ''));
-$faviconUrl = $faviconPath !== '' ? public_url($faviconPath) : '';
+$faviconUrl = $faviconPath !== '' ? public_versioned_url($faviconPath) : '';
 $faviconType = strtolower((string)pathinfo($faviconPath, PATHINFO_EXTENSION)) === 'png' ? 'image/png' : 'image/x-icon';
 ?>
 <!doctype html>
@@ -73,11 +84,11 @@ $faviconType = strtolower((string)pathinfo($faviconPath, PATHINFO_EXTENSION)) ==
       <h1 class="login-title"><?= e(APP_NAME) ?></h1>
       <p class="login-subtitle">管理画面ログイン</p>
 
-      <?php if ($initialAdminPassword !== ''): ?>
+      <?php if (is_array($initialCredentials)): ?>
         <div class="alert alert-warning" role="status">
           <strong>初回ログイン情報</strong><br>
-          ユーザー名：<code>admin</code><br>
-          パスワード：<code><?= e($initialAdminPassword) ?></code><br>
+          ログインID: <code><?= e($initialUsername) ?></code><br>
+          パスワード: <code><?= e($initialPassword) ?></code><br>
           <small>この表示は一度だけです。ログイン後、個人設定でログインIDとパスワードを変更してください。</small>
         </div>
       <?php endif; ?>
@@ -95,10 +106,14 @@ $faviconType = strtolower((string)pathinfo($faviconPath, PATHINFO_EXTENSION)) ==
         <div class="alert alert-error" role="alert"><?= e($error) ?></div>
       <?php endif; ?>
 
+      <?php if ($resetSuccess !== null): ?>
+        <div class="alert alert-success" role="status"><?= e($resetSuccess) ?></div>
+      <?php endif; ?>
+
       <form method="post" class="login-form">
         <?= csrf_input() ?>
         <label class="login-label">
-          ユーザー名
+          ログインID
           <input class="login-input" name="username" autocomplete="username" required>
         </label>
         <label class="login-label">

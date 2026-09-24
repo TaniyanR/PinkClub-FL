@@ -184,10 +184,10 @@ function auth_logout(): void
         $params = session_get_cookie_params();
         setcookie(session_name(), '', [
             'expires' => time() - 3600,
-            'path' => (string)$params['path'],
-            'domain' => (string)$params['domain'],
-            'secure' => (bool)$params['secure'],
-            'httponly' => (bool)$params['httponly'],
+            'path' => (string)($params['path'] ?? '/'),
+            'domain' => (string)($params['domain'] ?? ''),
+            'secure' => (bool)($params['secure'] ?? false),
+            'httponly' => (bool)($params['httponly'] ?? true),
             'samesite' => (string)($params['samesite'] ?? 'Lax'),
         ]);
     }
