@@ -6,7 +6,10 @@ require_once __DIR__ . '/../config/config.php';
 header('Content-Type: text/plain; charset=UTF-8');
 
 $base = rtrim((string)BASE_URL, '/');
-$base = preg_replace('#/?public/robots\.php$#', '', $base) ?: $base;
+$normalizedBase = preg_replace('#/(?:public/)?robots\.(?:php|txt)$#i', '', $base);
+if (is_string($normalizedBase)) {
+    $base = $normalizedBase;
+}
 $base = rtrim($base, '/');
 echo "User-agent: *\n";
 echo "Disallow: /admin/\n";
