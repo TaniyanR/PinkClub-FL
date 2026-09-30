@@ -35,8 +35,8 @@ function rss_trade_enrich_items(array $items): array
                 'partner_site_url' => trim((string)($row['partner_site_url'] ?? '')),
             ];
         }
-    } catch (Throwable $e) {
-        error_log('[rss] access-trade metadata lookup failed: ' . $e->getMessage());
+    } catch (Throwable) {
+        error_log('[rss] access-trade metadata lookup failed');
         return $items;
     }
 
@@ -55,7 +55,10 @@ function rss_trade_enrich_items(array $items): array
 
 function rss_trade_metrics_by_ref(array $refs, int $days = 30): array
 {
-    $refs = array_values(array_unique(array_filter(array_map('strval', $refs), static fn(string $v): bool => trim($v) !== '')));
+    $refs = array_values(array_unique(array_filter(
+        array_map(static fn($value): string => trim((string)$value), $refs),
+        static fn(string $value): bool => $value !== ''
+    )));
     if ($refs === []) return [];
     $days = max(1, min(365, $days));
     $metrics = [];
@@ -66,17 +69,17 @@ function rss_trade_metrics_by_ref(array $refs, int $days = 30): array
         $stmt = db()->prepare('SELECT ref_code, COUNT(*) AS c FROM in_logs WHERE created_at >= DATE_SUB(NOW(), INTERVAL ' . $days . ' DAY) AND ref_code IN (' . $placeholders . ') GROUP BY ref_code');
         $stmt->execute($refs);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
-            $ref = (string)($row['ref_code'] ?? '');
+            $ref = trim((string)($row['ref_code'] ?? ''));
             if (isset($metrics[$ref])) $metrics[$ref]['in'] = (int)($row['c'] ?? 0);
         }
         $stmt = db()->prepare('SELECT ref_code, COUNT(*) AS c FROM out_logs WHERE created_at >= DATE_SUB(NOW(), INTERVAL ' . $days . ' DAY) AND ref_code IN (' . $placeholders . ') GROUP BY ref_code');
         $stmt->execute($refs);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
-            $ref = (string)($row['ref_code'] ?? '');
+            $ref = trim((string)($row['ref_code'] ?? ''));
             if (isset($metrics[$ref])) $metrics[$ref]['out'] = (int)($row['c'] ?? 0);
         }
-    } catch (Throwable $e) {
-        error_log('[rss] access-trade metrics lookup failed: ' . $e->getMessage());
+    } catch (Throwable) {
+        error_log('[rss] access-trade metrics lookup failed');
     }
     return $metrics;
 }
@@ -127,6 +130,9 @@ function rss_trade_select(array $items, int $maxTotal, int $hardPerSiteCap, int 
     foreach ($buckets as &$bucket) if (count($bucket) > 1) shuffle($bucket);
     unset($bucket);
 
+    $activeSiteCount = count($buckets);
+    $fairShare = (int)ceil($maxTotal / max(1, $activeSiteCount));
+    $perSiteCap = min($hardPerSiteCap, max(1, $fairShare + 1));
     $metrics = rss_trade_metrics_by_ref(array_keys($refs), $days);
     $state = [];
     foreach ($buckets as $siteKey => $bucket) {
@@ -152,7 +158,7 @@ function rss_trade_select(array $items, int $maxTotal, int $hardPerSiteCap, int 
         $active = [];
         $totalWeight = 0.0;
         foreach ($buckets as $siteKey => $bucket) {
-            if ($bucket === [] || $state[$siteKey]['picked'] >= $hardPerSiteCap) continue;
+            if ($bucket === [] || $state[$siteKey]['picked'] >= $perSiteCap) continue;
             $state[$siteKey]['current'] += $state[$siteKey]['weight'];
             $active[$siteKey] = $state[$siteKey]['current'];
             $totalWeight += $state[$siteKey]['weight'];
@@ -211,6 +217,9 @@ function rss_trade_out_url(array $item): string
     $partnerId = (int)($item['partner_site_id'] ?? 0);
     $ref = trim((string)($item['partner_ref_code'] ?? ''));
     if ($target === '' || $partnerId <= 0 || $ref === '') return $target;
+    if (filter_var($target, FILTER_VALIDATE_URL) === false) return '';
+    $scheme = strtolower((string)(parse_url($target, PHP_URL_SCHEME) ?: ''));
+    if (!in_array($scheme, ['http', 'https'], true)) return '';
     $query = http_build_query(['partner' => $partnerId, 'ref' => $ref, 'to' => $target]);
     return function_exists('public_url') ? public_url('out.php?' . $query) : '/out.php?' . $query;
 }
